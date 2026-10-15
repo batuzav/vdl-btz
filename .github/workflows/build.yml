@@ -1,0 +1,108 @@
+name: Build
+
+on:
+  workflow_dispatch:      # botón "Run workflow" en la pestaña Actions
+  push:
+    tags: ["v*"]          # al subir una etiqueta (v0.2.0) también publica un Release
+  pull_request:
+
+permissions:
+  contents: write         # necesario para crear el Release
+
+jobs:
+  test:
+    name: Tests (Ruby ${{ matrix.ruby }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        ruby: ["3.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rake test
+
+  binary:
+    name: Binario ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false   # si un sistema falla, los demás siguen
+      matrix:
+        include:
+          - { os: macos-15,       target: macos-arm64 }
+          - { os: macos-15-intel, target: macos-x64 }
+          - { os: ubuntu-24.04,   target: linux-x64 }
+          # Windows se añade en una segunda iteración (necesita MSYS2/MinGW).
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Dependencias de Tebako (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          gem install tebako
+          brew bundle --file "$(gem contents tebako | grep '/Brewfile$')"
+
+      - name: Dependencias de Tebako (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          gem install tebako
+          sudo apt-get update
+          sudo apt-get -y install git curl build-essential pkg-config bison flex autoconf cmake \
+            binutils-dev libevent-dev acl-dev libfmt-dev libjemalloc-dev libiberty-dev \
+            libdouble-conversion-dev liblz4-dev liblzma-dev libssl-dev libunwind-dev \
+            libboost-filesystem-dev libboost-program-options-dev libboost-system-dev \
+            libboost-iostreams-dev libboost-date-time-dev libboost-context-dev \
+            libboost-regex-dev libboost-thread-dev libbrotli-dev libdwarf-dev libelf-dev \
+            libgoogle-glog-dev libffi-dev libgdbm-dev libyaml-dev libncurses-dev \
+            libreadline-dev libutfcpp-dev
+
+      # Se empaqueta solo bin/ y lib/. Sin Gemfile Tebako no necesita Bundler,
+      # y el binario no lleva tests ni archivos de desarrollo.
+      - name: Preparar carpeta de empaquetado
+        run: |
+          mkdir stage
+          cp -R bin lib stage/
+
+      - name: Empaquetar con Tebako
+        run: |
+          tebako press \
+            --root=stage \
+            --entry-point=bin/vdl-btz \
+            --output=vdl-btz-${{ matrix.target }} \
+            --Ruby=3.3.7 \
+            --mode=fat
+
+      - name: Prueba rápida del binario
+        run: |
+          chmod +x vdl-btz-${{ matrix.target }}
+          ./vdl-btz-${{ matrix.target }} version
+          ./vdl-btz-${{ matrix.target }} help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vdl-btz-${{ matrix.target }}
+          path: vdl-btz-${{ matrix.target }}
+
+  release:
+    name: Publicar Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
