@@ -3,6 +3,7 @@ name: Build
 on:
   workflow_dispatch:      # botón "Run workflow" en la pestaña Actions
   push:
+    branches: [master]    # cada push a master ejecuta tests y binarios
     tags: ["v*"]          # al subir una etiqueta (v0.2.0) también publica un Release
   pull_request:
 
