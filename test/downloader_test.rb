@@ -40,7 +40,8 @@ class DownloaderTest < Minitest::Test
   end
 
   def test_output_folder_by_platform
-    assert_equal File.join("/tmp/out", "youtube", "%(title).80B [%(id)s].%(ext)s"), value_after(args_for, "-o")
+    expected = File.join(File.expand_path("/tmp/out"), "youtube", "%(title).80B [%(id)s].%(ext)s")
+    assert_equal expected, value_after(args_for, "-o")
   end
 
   def test_cookies_and_playlist

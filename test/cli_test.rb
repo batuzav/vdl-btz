@@ -25,7 +25,7 @@ class CLITest < Minitest::Test
     assert opts[:audio]
     assert opts[:playlist]
     assert_equal "chrome", opts[:cookies]
-    assert_equal "/tmp/x", opts[:output]
+    assert_equal File.expand_path("/tmp/x"), opts[:output]
   end
 
   def test_reads_urls_from_file
