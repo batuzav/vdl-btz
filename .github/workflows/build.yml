@@ -73,6 +73,11 @@ jobs:
           mkdir stage
           cp -R bin lib stage/
 
+      # `press` con runtime precompilado exige haber ejecutado `setup` antes
+      # (prepara el entorno de Ruby y la herramienta mkdwarfs).
+      - name: Preparar entorno de Tebako
+        run: tebako setup --Ruby=3.3.7
+
       - name: Empaquetar con Tebako
         run: |
           tebako press \
