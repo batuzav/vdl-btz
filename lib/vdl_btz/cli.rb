@@ -194,15 +194,16 @@ module VdlBtz
     end
 
     def gui(argv)
-      opts = { window: true, port: 0 }
+      opts = { window: true, port: 0, idle: nil }
       OptionParser.new do |o|
         o.on("--no-window") { opts[:window] = false }
         o.on("--port N", Integer) { |v| opts[:port] = v }
+        o.on("--idle-timeout S", Integer) { |v| opts[:idle] = v }
       end.parse!(argv)
       raise Error, "La ventana todavía no está disponible; usa --no-window" if opts[:window]
 
       token = SecureRandom.hex(16)
-      server = GUI::Server.new(token: token, port: opts[:port])
+      server = GUI::Server.new(token: token, port: opts[:port], idle_timeout: opts[:idle])
       port = server.start
       puts "URL: http://127.0.0.1:#{port}/?t=#{token}"
       $stdout.flush

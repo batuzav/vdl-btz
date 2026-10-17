@@ -56,7 +56,7 @@
       "lib/vdl_btz/cli.rb",
       "test/gui_server_test.rb"
     ],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T3",
