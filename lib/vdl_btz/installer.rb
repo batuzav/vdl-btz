@@ -5,6 +5,7 @@ require "uri"
 require "fileutils"
 require "tmpdir"
 require "open3"
+require "digest"
 
 module VdlBtz
   # Instala y localiza las dependencias externas (yt-dlp y ffmpeg).
@@ -14,11 +15,22 @@ module VdlBtz
     FFMPEG_BUILDS = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/"
     EVERMEET = "https://evermeet.cx/ffmpeg/getrelease/"
 
-    def initialize(bin_dir: Paths.bin_dir)
+    def initialize(bin_dir: Paths.bin_dir, on_progress: nil)
       @bin_dir = bin_dir
+      @on_progress = on_progress
     end
 
     attr_reader :bin_dir
+    attr_accessor :on_progress
+
+    # Comprueba el SHA-256 de `path` contra la línea de `asset` en el texto de SHA2-256SUMS.
+    def self.verify_sha256!(path, sums_text, asset)
+      expected = sums_text.each_line.filter_map { |l| l.chomp.match(/\A([0-9a-f]{64})  (.+)\z/) }
+                          .find { |m| m[2] == asset }&.then { |m| m[1] }
+      return true if expected && Digest::SHA256.file(path).hexdigest == expected
+
+      raise Error, "La verificación SHA-256 de #{asset} falló"
+    end
 
     # ---------- Localizar ----------
 
@@ -82,7 +94,10 @@ module VdlBtz
       FileUtils.mkdir_p(bin_dir)
       target = managed_path("yt-dlp")
       tmp = "#{target}.part"
+      sums = "#{target}.sums.part"
       download(YTDLP_RELEASES + ytdlp_asset, tmp, label: "yt-dlp")
+      download(YTDLP_RELEASES + "SHA2-256SUMS", sums, label: "SHA2-256SUMS")
+      Installer.verify_sha256!(tmp, File.read(sums), ytdlp_asset)
       FileUtils.chmod(0o755, tmp)
       FileUtils.mv(tmp, target, force: true)
 
@@ -92,7 +107,7 @@ module VdlBtz
       UI.success("yt-dlp #{version} instalado")
       target
     ensure
-      FileUtils.rm_f(tmp) if tmp
+      FileUtils.rm_f([tmp, sums].compact)
     end
 
     def install_ffmpeg
@@ -204,6 +219,7 @@ module VdlBtz
           done += chunk.bytesize
           pct = total.positive? ? done * 100.0 / total : 0
           UI.progress(pct, "#{label}  #{UI.human_size(done)} / #{UI.human_size(total)}")
+          @on_progress&.call(label, pct)
         end
       end
       UI.end_progress
