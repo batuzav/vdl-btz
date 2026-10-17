@@ -80,7 +80,7 @@
       "lib/vdl_btz/downloader.rb",
       "test/downloader_test.rb"
     ],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T4",

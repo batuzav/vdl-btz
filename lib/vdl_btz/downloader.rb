@@ -11,9 +11,9 @@ module VdlBtz
     FILE_TAG = "VDLF:"
     ANSI = /\e\[[\d;]*[A-Za-z]/.freeze
 
-    Result = Struct.new(:url, :ok, :file, :error, keyword_init: true)
+    Result = Struct.new(:url, :ok, :file, :error, :canceled, keyword_init: true)
 
-    attr_reader :options
+    attr_reader :options, :pid
 
     # options: :output, :quality, :audio, :cookies, :playlist
     def initialize(ytdlp:, ffmpeg: nil, **options)
@@ -46,8 +46,10 @@ module VdlBtz
       file = nil
       errors = []
       status = nil
+      @canceled = false
 
       Open3.popen3(@ytdlp, *build_args(url)) do |stdin, stdout, stderr, wait|
+        @pid = wait.pid
         stdin.close
         err_reader = Thread.new do
           stderr.each_line do |line|
@@ -71,12 +73,25 @@ module VdlBtz
         err_reader.join
         status = wait.value
       end
+      @pid = nil
 
-      if status.success?
+      if @canceled
+        Result.new(url: url, ok: false, canceled: true, error: "Cancelado")
+      elsif status.success?
         Result.new(url: url, ok: true, file: file)
       else
         Result.new(url: url, ok: false, error: errors.last || "yt-dlp terminó con código #{status.exitstatus}")
       end
+    end
+
+    # Termina la descarga en curso (si la hay).
+    def cancel!
+      return unless @pid
+
+      @canceled = true
+      Process.kill(OS.windows? ? "KILL" : "TERM", @pid)
+    rescue Errno::ESRCH
+      nil
     end
 
     # Obtiene metadatos del video sin descargarlo.
