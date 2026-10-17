@@ -2,6 +2,7 @@
 
 require "optparse"
 require "openssl"
+require "securerandom"
 
 module VdlBtz
   # Interfaz de línea de comandos.
@@ -28,6 +29,7 @@ module VdlBtz
       when "doctor" then doctor
       when "info" then info(argv.drop(1))
       when "config" then config_cmd(argv.drop(1))
+      when "gui" then gui(argv.drop(1))
       else download(argv)
       end
     rescue OptionParser::ParseError, Error => e
@@ -191,6 +193,23 @@ module VdlBtz
       0
     end
 
+    def gui(argv)
+      opts = { window: true, port: 0 }
+      OptionParser.new do |o|
+        o.on("--no-window") { opts[:window] = false }
+        o.on("--port N", Integer) { |v| opts[:port] = v }
+      end.parse!(argv)
+      raise Error, "La ventana todavía no está disponible; usa --no-window" if opts[:window]
+
+      token = SecureRandom.hex(16)
+      server = GUI::Server.new(token: token, port: opts[:port])
+      port = server.start
+      puts "URL: http://127.0.0.1:#{port}/?t=#{token}"
+      $stdout.flush
+      server.join
+      0
+    end
+
     def version
       UI.say("vdl-btz #{VERSION}")
       0
@@ -206,6 +225,7 @@ module VdlBtz
           vdl-btz setup [--force]             Instala/reinstala yt-dlp y ffmpeg
           vdl-btz update                      Actualiza el motor de descarga
           vdl-btz doctor                      Revisa que todo funcione
+          vdl-btz gui [--no-window]           Abre la aplicación de escritorio
           vdl-btz config [set CLAVE VALOR]    Ver o cambiar la configuración
           vdl-btz version                     Muestra la versión
 
