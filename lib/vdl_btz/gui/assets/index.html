@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="vdl-token" content="__VDL_TOKEN__">
+<title>vdl-btz — Descargador de videos</title>
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+
+<header id="masthead">
+  <p id="dateline">N°01</p>
+  <h1>VDL-BTZ</h1>
+  <p class="tagline">Descargador de videos · uso personal</p>
+  <button id="theme-toggle" type="button">Tema: Auto</button>
+</header>
+
+<main id="main">
+  <section id="setup" hidden>
+    <h2><span class="num">00</span> Preparando la herramienta…</h2>
+    <p id="setup-label">Instalando componentes</p>
+    <progress id="setup-progress" max="100" value="0" aria-label="Avance de la instalación"></progress>
+  </section>
+
+  <div class="cols">
+    <div class="col">
+      <section aria-labelledby="h-add">
+        <h2 id="h-add"><span class="num">01</span> Pega un enlace</h2>
+        <form id="form-add">
+          <label for="urls">Enlaces (uno por línea)</label>
+          <textarea id="urls" rows="5" spellcheck="false"></textarea>
+          <fieldset>
+            <legend>Formato</legend>
+            <label class="inline"><input type="radio" name="mode" id="mode-video" value="video" checked> Video</label>
+            <label class="inline"><input type="radio" name="mode" id="mode-audio" value="audio"> Solo audio (MP3)</label>
+          </fieldset>
+          <label for="quality">Calidad</label>
+          <select id="quality">
+            <option value="best">Mejor disponible</option>
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+          </select>
+          <button id="btn-add" type="submit">Descargar</button>
+        </form>
+        <div id="msg" role="status" aria-live="polite"></div>
+      </section>
+
+      <section aria-labelledby="h-cfg">
+        <h2 id="h-cfg"><span class="num">03</span> Ajustes</h2>
+        <label for="cfg-output">Carpeta de destino</label>
+        <input id="cfg-output" type="text" spellcheck="false">
+        <label for="cfg-quality">Calidad por defecto</label>
+        <select id="cfg-quality">
+          <option value="best">Mejor disponible</option>
+          <option value="2160">2160p (4K)</option>
+          <option value="1440">1440p</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="360">360p</option>
+        </select>
+        <label for="cfg-cookies">Sesión del navegador (para contenido privado)</label>
+        <select id="cfg-cookies">
+          <option value="none">Ninguna</option>
+          <option value="chrome">Chrome</option>
+          <option value="firefox">Firefox</option>
+          <option value="edge">Edge</option>
+          <option value="safari">Safari</option>
+          <option value="brave">Brave</option>
+          <option value="opera">Opera</option>
+          <option value="chromium">Chromium</option>
+          <option value="vivaldi">Vivaldi</option>
+        </select>
+        <button id="btn-save-config" type="button">Guardar ajustes</button>
+        <button id="btn-update-engine" type="button">Actualizar motor</button>
+      </section>
+    </div>
+
+    <div class="col">
+      <section aria-labelledby="h-jobs">
+        <h2 id="h-jobs"><span class="num">02</span> En cola</h2>
+        <ol id="jobs"></ol>
+        <p id="empty">Todavía no hay descargas.</p>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer id="legal">
+  <p><strong>Aviso legal.</strong> Herramienta de uso personal. Descarga solo contenido del que seas autor, que tenga licencia libre o que tengas permiso para guardar. Respeta los derechos de autor y los términos de servicio de cada plataforma.</p>
+</footer>
+</body>
+</html>

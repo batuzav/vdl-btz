@@ -16,6 +16,13 @@ module VdlBtz
                   404 => "Not Found", 405 => "Method Not Allowed", 409 => "Conflict", 413 => "Payload Too Large" }.freeze
       METHODS = { "/api/health" => "GET", "/api/shutdown" => "POST", "/api/ping" => "POST" }.freeze
       MAX_BODY = 65_536
+      ASSETS_DIR = File.expand_path("assets", __dir__)
+      # Lista blanca fija de lo que se sirve en /assets/ (nada de rutas armadas con lo que pide el cliente).
+      ASSETS = {
+        "app.css" => "text/css; charset=utf-8", "app.js" => "text/javascript; charset=utf-8",
+        "fonts/hanken-grotesk-var.woff2" => "font/woff2", "fonts/space-mono-400.woff2" => "font/woff2",
+        "fonts/space-mono-700.woff2" => "font/woff2"
+      }.freeze
       SECURITY = {
         "Cache-Control" => "no-store", "X-Content-Type-Options" => "nosniff", "Referrer-Policy" => "no-referrer",
         "Content-Security-Policy" => "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
@@ -72,7 +79,8 @@ module VdlBtz
         status, extra, body, method, path = handle(sock)
         head = { "Content-Type" => "application/json; charset=utf-8", "Content-Length" => body.bytesize.to_s,
                  "Connection" => "close" }.merge(SECURITY).merge(extra)
-        sock.write("HTTP/1.1 #{status} #{REASONS[status]}\r\n#{head.map { |k, v| "#{k}: #{v}" }.join("\r\n")}\r\n\r\n#{body}")
+        sock.write("HTTP/1.1 #{status} #{REASONS[status]}\r\n#{head.map { |k, v| "#{k}: #{v}" }.join("\r\n")}\r\n\r\n")
+        sock.write(body)
         stop if method == "POST" && path == "/api/shutdown" && status == 200
       rescue StandardError
         nil
@@ -111,12 +119,33 @@ module VdlBtz
         when "/api/health" then [200, {}, JSON.generate(ok: true, data: { version: VERSION })]
         when "/api/shutdown" then [200, {}, JSON.generate(ok: true, data: {})]
         when "/api/ping" then touch && [200, {}, JSON.generate(ok: true, data: {})]
+        when "/" then page(req)
+        when %r{\A/assets/} then asset(path.delete_prefix("/assets/"))
         else @handler&.call(req) || [404, {}, error("not_found", "Ruta no encontrada")]
         end
       end
 
+      # index.html con el token incrustado en <meta name="vdl-token">; sin `t` válido no se sirve.
+      def page(req)
+        return [401, {}, error("unauthorized", "Token inválido")] unless token_ok?(req.query["t"])
+
+        html = File.binread(File.join(ASSETS_DIR, "index.html")).sub("__VDL_TOKEN__", @token)
+        [200, { "Content-Type" => "text/html; charset=utf-8" }, html]
+      end
+
+      def asset(name)
+        file = File.join(ASSETS_DIR, name)
+        return [404, {}, error("not_found", "Ruta no encontrada")] unless ASSETS.key?(name) && File.file?(file)
+
+        [200, { "Content-Type" => ASSETS[name] }, File.binread(file)]
+      end
+
       def authorized?(headers)
-        given = headers["x-vdl-token"].to_s
+        token_ok?(headers["x-vdl-token"])
+      end
+
+      def token_ok?(given)
+        given = given.to_s
         given.bytesize == @token.bytesize && OpenSSL.fixed_length_secure_compare(given, @token)
       end
 
