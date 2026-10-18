@@ -3,6 +3,7 @@
 require "test_helper"
 require "tmpdir"
 require "digest"
+require "minitest/mock"
 
 class InstallerTest < Minitest::Test
   BYTES = "fake-ytdlp-bytes"
@@ -78,5 +79,60 @@ class InstallerTest < Minitest::Test
       VdlBtz::Installer.new(bin_dir: dir, on_progress: progress).send(:write_body, res, File.join(dir, "x"), "x")
     end
     assert_equal [["x", 50], ["x", 100]], seen
+  end
+
+  # Instalador de Deno sin red ni descompresión real.
+  class DenoInstaller < VdlBtz::Installer
+    attr_accessor :good_sums
+
+    def version_of(_path, *_args)
+      "deno 9.9.9"
+    end
+
+    private
+
+    def download(url, dest, label:)
+      sum = good_sums ? Digest::SHA256.hexdigest("zip-bytes") : "0" * 64
+      File.write(dest, url.end_with?(".sha256sum") ? "#{sum}  #{deno_asset}\n" : "zip-bytes")
+    end
+
+    def extract(_archive, dest)
+      FileUtils.mkdir_p(File.join(dest, "x"))
+      File.write(File.join(dest, "x", VdlBtz::OS.exe("deno")), "deno-bin")
+    end
+  end
+
+  def test_deno_asset_names
+    {
+      [:mac, true] => "deno-aarch64-apple-darwin.zip", [:mac, false] => "deno-x86_64-apple-darwin.zip",
+      [:linux, false] => "deno-x86_64-unknown-linux-gnu.zip", [:linux, true] => "deno-aarch64-unknown-linux-gnu.zip",
+      [:windows, false] => "deno-x86_64-pc-windows-msvc.zip"
+    }.each do |(os, arm), expected|
+      VdlBtz::OS.stub(:windows?, os == :windows) do
+        VdlBtz::OS.stub(:mac?, os == :mac) do
+          VdlBtz::OS.stub(:arm?, arm) { assert_equal expected, VdlBtz::Installer.new(bin_dir: "/x").deno_asset }
+        end
+      end
+    end
+  end
+
+  def test_install_deno_verifies_the_zip_before_installing
+    Dir.mktmpdir do |dir|
+      inst = DenoInstaller.new(bin_dir: dir)
+      inst.good_sums = true
+      path = inst.ensure_deno!
+      assert_equal File.join(dir, VdlBtz::OS.exe("deno")), path
+      assert_equal path, inst.deno_path
+      assert File.executable?(path)
+    end
+
+    Dir.mktmpdir do |dir|
+      bad = DenoInstaller.new(bin_dir: dir)
+      bad.good_sums = false
+      e = assert_raises(VdlBtz::Error) { bad.ensure_deno! }
+      assert_includes e.message, "SHA-256"
+      assert_nil bad.deno_path
+      assert_nil bad.ensure_deno
+    end
   end
 end

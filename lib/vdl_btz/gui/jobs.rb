@@ -44,7 +44,8 @@ module VdlBtz
       def self.downloader_runner(installer:, config:)
         lambda do |job, control|
           dl = Downloader.new(ytdlp: installer.ytdlp_path, ffmpeg: installer.ffmpeg_path, output: config["output"],
-                              quality: job.quality, audio: job.audio, cookies: config["cookies"])
+                              quality: job.quality, audio: job.audio, cookies: config["cookies"],
+                              js_runtime: installer.deno_path)
           control.on_cancel { dl.cancel! }
           dl.download(job.url) do |event, data|
             case event

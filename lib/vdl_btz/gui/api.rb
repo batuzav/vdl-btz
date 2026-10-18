@@ -22,7 +22,7 @@ module VdlBtz
         when ["GET", "/api/jobs"] then ok(jobs: @queue.list)
         when ["POST", "/api/jobs"] then create_jobs(req)
         when ["POST", "/api/config"] then save_config(req)
-        when ["POST", "/api/setup"] then install { @installer.ensure_ytdlp! && @installer.ensure_ffmpeg }
+        when ["POST", "/api/setup"] then install { setup_all }
         when ["POST", "/api/engine/update"] then install { @installer.install_ytdlp }
         when ["POST", "/api/open"] then open_folder(req)
         else
@@ -39,7 +39,7 @@ module VdlBtz
       end
 
       def setup_state
-        { ytdlp: !@installer.ytdlp_path.nil?, ffmpeg: !@installer.ffmpeg_path.nil? }.merge(@lock.synchronize { @setup.dup })
+        { ytdlp: !@installer.ytdlp_path.nil?, ffmpeg: !@installer.ffmpeg_path.nil?, deno: !@installer.deno_path.nil? }.merge(@lock.synchronize { @setup.dup })
       end
 
       def save_config(req)
@@ -59,6 +59,13 @@ module VdlBtz
         when "output" then value.is_a?(String) && !value.strip.empty?
         else false
         end
+      end
+
+      # ffmpeg es opcional (devuelve nil si falla): no debe impedir instalar Deno.
+      def setup_all
+        @installer.ensure_ytdlp!
+        @installer.ensure_ffmpeg
+        @installer.ensure_deno!
       end
 
       def install(&work)

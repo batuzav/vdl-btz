@@ -78,4 +78,10 @@ class DownloaderTest < Minitest::Test
     assert_nil d.cancel!
     assert_nil VdlBtz::Downloader::Result.new(url: "u", ok: true).canceled
   end
+
+  def test_js_runtime_is_passed_to_ytdlp_only_when_present
+    args = args_for(js_runtime: "/bin/deno")
+    assert_equal "deno:/bin/deno", value_after(args, "--js-runtimes")
+    refute_includes args_for, "--js-runtimes"
+  end
 end

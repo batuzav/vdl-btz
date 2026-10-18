@@ -28,6 +28,15 @@ class GuiApiSettingsTest < Minitest::Test
       nil
     end
 
+    def deno_path
+      @deno ? "/fake/deno" : nil
+    end
+
+    def ensure_deno!
+      @calls << :ensure_deno
+      @deno = true
+    end
+
     def ensure_ytdlp!
       @calls << :ensure_ytdlp
       @on_progress&.call("yt-dlp", 40)
@@ -101,8 +110,8 @@ class GuiApiSettingsTest < Minitest::Test
     assert_equal 202, code
     wait_setup_done
     state = call(:get, "/api/state").last.dig("data", "setup")
-    assert_equal [true, false, nil], [state["ytdlp"], state["running"], state["error"]]
-    assert_equal %i[ensure_ytdlp ensure_ffmpeg], @installer.calls
+    assert_equal [true, true, false, nil], [state["ytdlp"], state["deno"], state["running"], state["error"]]
+    assert_equal %i[ensure_ytdlp ensure_ffmpeg ensure_deno], @installer.calls
   end
 
   def test_setup_error_is_reported

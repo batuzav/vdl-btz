@@ -100,7 +100,8 @@ module VdlBtz
       url = opts[:urls].first
       raise Error, "Uso: vdl-btz info URL" unless url && Platform.valid_url?(url)
 
-      downloader = Downloader.new(ytdlp: @installer.ensure_ytdlp!, cookies: opts[:cookies], output: opts[:output])
+      downloader = Downloader.new(ytdlp: @installer.ensure_ytdlp!, cookies: opts[:cookies], output: opts[:output],
+                                  js_runtime: @installer.deno_path)
       UI.info("Consultando #{Platform.display_name(Platform.detect(url))}...")
       data = downloader.info(url)
 
@@ -258,10 +259,11 @@ module VdlBtz
     def build_downloader(opts)
       ytdlp = @installer.ensure_ytdlp!
       ffmpeg = @installer.ensure_ffmpeg
+      deno = @installer.ensure_deno
       UI.warn("ffmpeg no disponible: el audio se guardará en su formato original (no MP3)") if opts[:audio] && !ffmpeg
 
       Downloader.new(
-        ytdlp: ytdlp, ffmpeg: ffmpeg,
+        ytdlp: ytdlp, ffmpeg: ffmpeg, js_runtime: deno,
         output: opts[:output], quality: opts[:quality], audio: opts[:audio],
         cookies: opts[:cookies], playlist: opts[:playlist]
       )

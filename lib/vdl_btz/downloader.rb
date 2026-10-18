@@ -36,6 +36,7 @@ module VdlBtz
         options[:playlist] ? "--yes-playlist" : "--no-playlist"
       ]
       args += ["--ffmpeg-location", @ffmpeg] if @ffmpeg
+      args += js_runtime_args
       args += ["--cookies-from-browser", options[:cookies]] if options[:cookies]
       args += format_args
       args + ["--", url]
@@ -96,7 +97,7 @@ module VdlBtz
 
     # Obtiene metadatos del video sin descargarlo.
     def info(url)
-      args = ["-J", "--no-warnings", "--no-playlist"]
+      args = ["-J", "--no-warnings", "--no-playlist"] + js_runtime_args
       args += ["--cookies-from-browser", options[:cookies]] if options[:cookies]
       out, err, status = Open3.capture3(@ytdlp, *args, "--", url)
       unless status.success?
@@ -108,6 +109,10 @@ module VdlBtz
     end
 
     private
+
+    def js_runtime_args
+      options[:js_runtime] ? ["--js-runtimes", "deno:#{options[:js_runtime]}"] : []
+    end
 
     def format_args
       if options[:audio]

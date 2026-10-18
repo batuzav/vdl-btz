@@ -9,7 +9,7 @@ require "timeout"
 class GuiApiJobsTest < Minitest::Test
   TOKEN = "b" * 32
   Res = Struct.new(:ok, :file, :error, :canceled, keyword_init: true)
-  FakeInstaller = Struct.new(:ytdlp_path, :ffmpeg_path)
+  FakeInstaller = Struct.new(:ytdlp_path, :ffmpeg_path, :deno_path)
 
   def boot(ytdlp: "/fake/yt-dlp", runner: ->(_j, _c) { Res.new(ok: true, file: "/v.mp4") })
     @queue = VdlBtz::GUI::JobQueue.new(runner: runner)
@@ -37,7 +37,7 @@ class GuiApiJobsTest < Minitest::Test
     code, json = call(:get, "/api/state")
     assert_equal 200, code
     assert_equal %w[browsers config os qualities setup version], json["data"].keys.sort
-    assert_equal %w[error ffmpeg label percent running ytdlp], json["data"]["setup"].keys.sort
+    assert_equal %w[deno error ffmpeg label percent running ytdlp], json["data"]["setup"].keys.sort
   end
 
   def test_create_list_and_cancel_jobs
