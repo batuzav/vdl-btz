@@ -21,7 +21,7 @@ Ruby version of the packaged binary: `.github/workflows/build.yml`. Dev gem vers
 
 ## Stack
 
-Ruby, solo biblioteca estándar (sin gemas de ejecución) · Minitest + rake · servidor HTTP local propio (`socket`) · HTML/CSS/JS planos · Tebako para empaquetar · GitHub Actions. Sin base de datos: `~/.vdl-btz/config.yml` y estado en memoria.
+Ruby, solo biblioteca estándar (sin gemas de ejecución) · Minitest + rake · servidor HTTP local propio (`socket`) · HTML/CSS/JS planos · Tebako para empaquetar · GitHub Actions. Sin base de datos: `~/.vdl-btz/config.yml` y estado en memoria. yt-dlp, ffmpeg y Deno (el entorno de JavaScript que YouTube necesita) se descargan en el primer uso a `~/.vdl-btz/bin`.
 
 ## Architecture
 

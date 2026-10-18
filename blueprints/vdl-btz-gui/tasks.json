@@ -69,7 +69,8 @@
       "WHEN `#download` has returned after a cancel THE SYSTEM SHALL leave no running child process (`Process.kill(0, pid)` raises `Errno::ESRCH`).",
       "WHEN `#cancel!` is called while no download is running THE SYSTEM SHALL return without raising an error.",
       "WHEN a `Result` is built without the `canceled` keyword THE SYSTEM SHALL report `canceled` as nil.",
-      "WHEN `rake test` runs THE SYSTEM SHALL exit 0 with the existing downloader tests unchanged in behaviour."
+      "WHEN `rake test` runs THE SYSTEM SHALL exit 0 with the existing downloader tests unchanged in behaviour.",
+      "WHEN `Downloader` is built with `js_runtime: <path>` THE SYSTEM SHALL add `--js-runtimes deno:<path>` to the arguments of both `build_args` and `info`, and WHEN `js_runtime` is absent THE SYSTEM SHALL add no `--js-runtimes` argument."
     ],
     "verify": [
       "ruby -Ilib -Itest test/downloader_test.rb  # expect: exit 0, 0 failures, 0 errors (the cancel cases are skipped on Windows only)",
@@ -93,7 +94,8 @@
       "WHEN the digest differs from the entry THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains `SHA-256`.",
       "WHEN `asset` has no entry in `sums` THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains `SHA-256`.",
       "WHEN `install_ytdlp` downloads yt-dlp THE SYSTEM SHALL fetch `SHA2-256SUMS` from the same release URL and verify the file before `chmod` and before moving it into `bin_dir`; on a mismatch THE SYSTEM SHALL raise `VdlBtz::Error`, leave no `yt-dlp` file and no `.part` file in `bin_dir`.",
-      "WHEN `on_progress` is set and a download body arrives in chunks THE SYSTEM SHALL call `on_progress.call(label, percent)` once per chunk with `percent` between 0 and 100."
+      "WHEN `on_progress` is set and a download body arrives in chunks THE SYSTEM SHALL call `on_progress.call(label, percent)` once per chunk with `percent` between 0 and 100.",
+      "WHEN `Installer#ensure_deno!` runs without a Deno in `bin_dir` THE SYSTEM SHALL download the `deno-<arch>-<os>` zip and its `.sha256sum` from the Deno release, verify the zip with `verify_sha256!` before extracting it and install an executable `deno` in `bin_dir`; on a checksum mismatch it SHALL raise `VdlBtz::Error` mentioning `SHA-256` and install nothing, and `ensure_deno` SHALL then return nil with a warning instead of raising."
     ],
     "verify": [
       "ruby -Ilib -Itest test/installer_test.rb  # expect: exit 0, 0 failures, 0 errors",
@@ -102,6 +104,7 @@
     "checkpoint": "step-04-installer-integrity",
     "files": [
       "lib/vdl_btz/installer.rb",
+      "lib/vdl_btz/cli.rb",
       "test/installer_test.rb"
     ],
     "status": "done"
@@ -115,7 +118,7 @@
     ],
     "priority": "p0",
     "acceptance": [
-      "WHEN `JobQueue#add(urls, audio:, quality:)` receives only valid http(s) URLs THE SYSTEM SHALL return one job per URL, each with a unique `id` and `status` `queued` or `running`.",
+      "WHEN `JobQueue#add(urls, audio:, quality:)` receives only valid http(s) URLs THE SYSTEM SHALL return one job per URL, each with a unique `id` and `status` `queued` or `running`, and with `url` passed through `Platform.clean_url`, which reduces a YouTube video link carrying `list` to the bare video link (dropping `list`, `index` and `start_radio` and keeping other parameters) and leaves playlist links, other sites and invalid text unchanged.",
       "WHEN any URL is invalid according to `Platform.valid_url?` THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains that URL and SHALL enqueue none of the URLs.",
       "WHEN more jobs than `workers` are added THE SYSTEM SHALL run at most `workers` jobs at the same time.",
       "WHEN the runner reports `ok` true THE SYSTEM SHALL set the job to `done` with its `file`, and WHEN it reports `ok` false with an `error` THE SYSTEM SHALL set the job to `error` and fill `hint` from `Hints.for(error)`.",
@@ -130,7 +133,9 @@
     "files": [
       "lib/vdl_btz/gui/jobs.rb",
       "lib/vdl_btz.rb",
-      "test/gui_jobs_test.rb"
+      "lib/vdl_btz/platform.rb",
+      "test/gui_jobs_test.rb",
+      "test/platform_test.rb"
     ],
     "status": "done"
   },
@@ -144,7 +149,7 @@
     ],
     "priority": "p0",
     "acceptance": [
-      "WHEN `GET /api/state` is requested with a valid token THE SYSTEM SHALL respond `200` with `data` containing the keys `version, os, config, qualities, browsers, setup`, where `setup` contains the keys `ytdlp, ffmpeg, running, label, percent, error`.",
+      "WHEN `GET /api/state` is requested with a valid token THE SYSTEM SHALL respond `200` with `data` containing the keys `version, os, config, qualities, browsers, setup`, where `setup` contains the keys `ytdlp, ffmpeg, deno, running, label, percent, error`.",
       "WHEN `POST /api/jobs` receives `{\"urls\":[\"https://youtu.be/abc123\"],\"audio\":false,\"quality\":\"720\"}` and yt-dlp is installed THE SYSTEM SHALL respond `202` with `data.jobs` holding one job whose `status` is `queued` or `running`.",
       "WHEN the body is not a JSON object, or `urls` is missing, empty, longer than 20 or not strings, or a URL is invalid, or `quality` is not in `Config::QUALITIES`, THE SYSTEM SHALL respond `400` with the codes `bad_json`, `no_urls`, `invalid_url` or `invalid_quality` respectively and enqueue nothing.",
       "WHEN `POST /api/jobs` arrives while yt-dlp is not installed THE SYSTEM SHALL respond `409` with error code `setup_required` and enqueue nothing.",
@@ -178,7 +183,7 @@
     "acceptance": [
       "WHEN `POST /api/config` receives valid values for `output`, `quality` and `cookies` THE SYSTEM SHALL write them to the file at `Paths.config_file` and respond `200` with `data.config` reflecting them.",
       "WHEN any submitted config value is invalid (for example `quality` `999` or `cookies` `netscape`) THE SYSTEM SHALL respond `400` with error code `invalid_config` and leave the config file byte-for-byte unchanged.",
-      "WHEN `POST /api/setup` is requested and yt-dlp or ffmpeg is missing THE SYSTEM SHALL respond `202`, run `ensure_ytdlp!` and then `ensure_ffmpeg` in a background thread, expose `setup.running`, `setup.label` and `setup.percent` through `GET /api/state` while `on_progress` is called, and finish with `running` false.",
+      "WHEN `POST /api/setup` is requested and yt-dlp, ffmpeg or Deno is missing THE SYSTEM SHALL respond `202`, run `ensure_ytdlp!`, `ensure_ffmpeg` and `ensure_deno!` in that order in a background thread (ffmpeg is optional: its failure SHALL NOT stop Deno from being installed), expose `setup.running`, `setup.label` and `setup.percent` through `GET /api/state` while `on_progress` is called, and finish with `running` false.",
       "WHEN the background install raises an error THE SYSTEM SHALL set `setup.error` to the error message with `running` false, and WHEN `POST /api/setup` or `POST /api/engine/update` arrives while `running` is true THE SYSTEM SHALL respond `409` with error code `already_running`.",
       "WHEN `POST /api/engine/update` is requested THE SYSTEM SHALL respond `202` and run `install_ytdlp` in a background thread with the same `setup` fields.",
       "WHEN `POST /api/open` receives the id of a job that has a `file` THE SYSTEM SHALL call the opener with that file's directory and respond `200`; for an unknown id or a job without `file` it SHALL respond `404` with error code `no_file`; for `{}` it SHALL create the configured output folder if missing and open it; and WHEN any test runs THE SYSTEM SHALL have `ENV[\"HOME\"]` equal to the temporary `ENV[\"VDL_BTZ_HOME\"]`, so `Dir.home` never points at the real home folder."
@@ -208,8 +213,8 @@
     "priority": "p0",
     "acceptance": [
       "WHEN `GET /?t=<token>` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/html; charset=utf-8` and a body containing `<meta name=\"vdl-token\" content=\"<token>\">`, and WHEN `t` is missing or wrong THE SYSTEM SHALL respond `401` with the JSON error code `unauthorized`.",
-      "WHEN the served HTML is inspected THE SYSTEM SHALL contain every element id of the DOM contract (`masthead`, `dateline`, `theme-toggle`, `setup`, `setup-label`, `setup-progress`, `form-add`, `urls`, `mode-video`, `mode-audio`, `quality`, `btn-add`, `msg`, `jobs`, `empty`, `cfg-output`, `cfg-quality`, `cfg-cookies`, `btn-save-config`, `btn-update-engine`, `legal`), no inline `<script>` content and no `style=` attribute.",
-      "WHEN `GET /assets/app.css` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/css; charset=utf-8` and a body containing the literals `--paper:#ece9e1`, `--ink:#000000`, `--paper:#0c0b09`, `--ink:#ede8db`, `prefers-color-scheme`, `Hanken Grotesk` and `Space Mono`.",
+      "WHEN the served HTML is inspected THE SYSTEM SHALL contain every element id of the DOM contract (`masthead`, `dateline`, `theme-toggle`, `setup`, `setup-label`, `setup-progress`, `form-add`, `urls`, `mode-video`, `mode-audio`, `quality`, `btn-add`, `msg`, `jobs`, `empty`, `cfg-output`, `cfg-quality`, `cfg-cookies`, `btn-save-config`, `btn-update-engine`, `legal`), no inline `<script>` content and no `style=` attribute, and the `jobs` list SHALL carry `tabindex=\"0\"` so the scrollable list can be reached with the keyboard.",
+      "WHEN `GET /assets/app.css` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/css; charset=utf-8` and a body containing the literals `--paper:#ece9e1`, `--ink:#000000`, `--paper:#0c0b09`, `--ink:#ede8db`, `prefers-color-scheme`, `Hanken Grotesk`, `Space Mono` and a rule giving `#jobs` the declaration `overflow-y:auto`.",
       "WHEN the three files under `/assets/fonts/` are requested THE SYSTEM SHALL respond `200` with `Content-Type: font/woff2` and bodies whose SHA-256 digests are `1f21c6eaa0000f3329cfcfac966b43d5bebf5aa610303e33294ac31bc6f4bb59` (`hanken-grotesk-var.woff2`), `e0c8e616bda27642f4c3cebaecff6525d901e73afc8a227cbbb0f2af4810f300` (`space-mono-400.woff2`) and `af7cf6d2b897ec453acdcdacde4e9bcc8410718af5914de865b453e09f10eebc` (`space-mono-700.woff2`).",
       "WHEN a path outside the allowlist is requested (`/assets/unknown.js`, `/assets/../server.rb`, `/assets/fonts/../../server.rb`) THE SYSTEM SHALL respond `404` with error code `not_found`.",
       "WHEN `vdl-btz.gemspec` is loaded with `Gem::Specification.load` THE SYSTEM SHALL list `lib/vdl_btz/gui/assets/index.html`, `lib/vdl_btz/gui/assets/app.css` and the three `lib/vdl_btz/gui/assets/fonts/*.woff2` files in `files`."
