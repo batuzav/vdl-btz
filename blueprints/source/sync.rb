@@ -10,6 +10,8 @@
 # Solo se tocan las zonas entre marcadores `<!-- GENERATED:... BEGIN -->` y `<!-- GENERATED:... END -->`, y tasks.json
 # (conservando el `status` de cada tarea). Todo lo demás del plano se edita a mano.
 
+Encoding.default_external = Encoding::UTF_8 # sin esto, un sistema sin locale UTF-8 lee el plano como ASCII
+
 require "json"
 require "yaml"
 
