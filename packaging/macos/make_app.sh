@@ -15,12 +15,13 @@ out=$4
 app="$out/vdl-btz.app"
 
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
-cp "$bin" "$app/Contents/MacOS/vdl-btz"
-chmod 755 "$app/Contents/MacOS/vdl-btz"
+# El binario de Tebako lleva datos pegados al final: codesign lo rechaza como código en MacOS/, así que va en Resources/.
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp "$bin" "$app/Contents/Resources/vdl-btz"
+chmod 755 "$app/Contents/Resources/vdl-btz"
 
 # El lanzador abre la aplicación (comando gui) sin mostrar Terminal.
-printf '#!/bin/sh\nexec "$(dirname "$0")/vdl-btz" gui\n' > "$app/Contents/MacOS/vdl-btz-launcher"
+printf '#!/bin/sh\nexec "$(dirname "$0")/../Resources/vdl-btz" gui\n' > "$app/Contents/MacOS/vdl-btz-launcher"
 chmod 755 "$app/Contents/MacOS/vdl-btz-launcher"
 
 cat > "$app/Contents/Info.plist" <<EOF

@@ -35,10 +35,10 @@ class PackagingTest < Minitest::Test
       log, status = sh("sh", MAKE_APP, fake_binary(dir), "x64", "9.9.9", out)
       assert status.success?, log
       app = File.join(out, "vdl-btz.app", "Contents")
-      assert File.file?(File.join(app, "MacOS", "vdl-btz"))
+      assert File.file?(File.join(app, "Resources", "vdl-btz"))
       launcher = File.join(app, "MacOS", "vdl-btz-launcher")
       assert File.executable?(launcher)
-      assert_includes File.read(launcher), 'exec "$(dirname "$0")/vdl-btz" gui'
+      assert_includes File.read(launcher), 'exec "$(dirname "$0")/../Resources/vdl-btz" gui'
 
       plist = File.join(app, "Info.plist")
       assert sh("plutil", "-lint", plist).last.success?
