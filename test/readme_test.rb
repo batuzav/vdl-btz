@@ -23,7 +23,7 @@ class ReadmeTest < Minitest::Test
 
   def test_blocked_app_section_explains_macos_and_windows
     s = section("Si el sistema bloquea la app")
-    ["xattr -d com.apple.quarantine", "SmartScreen"].each { |frag| assert_includes s, frag }
+    ["xattr -dr com.apple.quarantine", "SmartScreen"].each { |frag| assert_includes s, frag }
   end
 
   def test_system_requirements_and_cli_note

@@ -76,7 +76,7 @@ Si prefieres usar solo la terminal sin instalar Ruby, también hay binarios de l
 
 Las apps **no están firmadas** porque el proyecto es gratuito y no paga certificados de Apple ni de Microsoft. Por eso tu sistema puede mostrar un aviso la primera vez. La app es la misma que ves en el código; para abrirla:
 
-- **macOS:** haz clic derecho sobre `vdl-btz.app` → **Abrir** → **Abrir**. Si no aparece esa opción, en la terminal: `xattr -d com.apple.quarantine /Applications/vdl-btz.app` (ajusta la ruta si la guardaste en otro sitio).
+- **macOS (15 o posterior):** abre `vdl-btz.app` una vez (saldrá el aviso y pulsa **Listo**); luego ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta la parte de Seguridad, pulsa **Abrir de todos modos** junto a `vdl-btz` y confirma con tu contraseña. Solo hace falta la primera vez. Alternativa en la terminal: `xattr -dr com.apple.quarantine /Applications/vdl-btz.app` (ajusta la ruta si la guardaste en otro sitio).
 - **Windows:** si aparece el aviso de `SmartScreen`, pulsa **Más información** → **Ejecutar de todas formas**.
 - **Linux:** da permiso de ejecución al archivo: `chmod +x vdl-btz-x86_64.AppImage`.
 
