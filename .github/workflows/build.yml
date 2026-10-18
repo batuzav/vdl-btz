@@ -93,10 +93,22 @@ jobs:
           ./vdl-btz-${{ matrix.target }} version
           ./vdl-btz-${{ matrix.target }} help
 
+      - name: Empaquetar app de macOS
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p dist
+          sh packaging/macos/make_app.sh vdl-btz-${{ matrix.target }} ${{ matrix.target }} "$(ruby -Ilib -e 'require "vdl_btz"; print VdlBtz::VERSION')" dist
+
       - uses: actions/upload-artifact@v4
         with:
           name: vdl-btz-${{ matrix.target }}
           path: vdl-btz-${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: vdl-btz-${{ matrix.target }}-app
+          path: dist/*.dmg
 
   release:
     name: Publicar Release
