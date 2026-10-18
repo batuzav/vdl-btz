@@ -8,28 +8,83 @@ vdl-btz "https://www.tiktok.com/@usuario/video/1234567890"
 
 - **Fácil de usar:** pegas la URL y listo. Detecta la plataforma automáticamente.
 - **Multiplataforma:** macOS, Linux y Windows.
-- **Sin instalaciones complicadas:** la primera vez que lo usas descarga solo lo que necesita (`yt-dlp` y `ffmpeg`) en `~/.vdl-btz/bin`, sin pedir permisos de administrador.
+- **Sin instalaciones complicadas:** la primera vez que lo usas descarga solo lo que necesita (`yt-dlp`, `ffmpeg` y `Deno`) en `~/.vdl-btz/bin`, sin pedir permisos de administrador.
 - **Sin dependencias de gemas:** usa solo la librería estándar de Ruby.
+- **App de escritorio:** además del CLI, una ventana con diseño de periódico (`vdl-btz gui`) para quien prefiere no usar la terminal. Ver [App de escritorio](#app-de-escritorio).
 - Barra de progreso, descargas múltiples, solo audio en MP3, elección de calidad y mensajes de error con sugerencias en español.
 
 ---
 
 ## Índice
 
-1. [Requisitos](#requisitos)
-2. [Instalación](#instalación)
-3. [Uso rápido](#uso-rápido)
-4. [Comandos y opciones](#comandos-y-opciones)
-5. [Configuración](#configuración)
-6. [Contenido privado (cookies)](#contenido-privado-cookies)
-7. [Solución de problemas](#solución-de-problemas)
-8. [Cómo funciona](#cómo-funciona)
-9. [Desarrollo](#desarrollo)
-10. [Aviso legal](#aviso-legal)
+1. [App de escritorio](#app-de-escritorio)
+2. [Descargas](#descargas)
+3. [Requisitos de sistema](#requisitos-de-sistema)
+4. [Si el sistema bloquea la app](#si-el-sistema-bloquea-la-app)
+5. [Requisitos (CLI con Ruby)](#requisitos)
+6. [Instalación](#instalación)
+7. [Uso rápido](#uso-rápido)
+8. [Comandos y opciones](#comandos-y-opciones)
+9. [Configuración](#configuración)
+10. [Contenido privado (cookies)](#contenido-privado-cookies)
+11. [Solución de problemas](#solución-de-problemas)
+12. [Cómo funciona](#cómo-funciona)
+13. [Desarrollo](#desarrollo)
+14. [Aviso legal](#aviso-legal)
+
+---
+
+## App de escritorio
+
+vdl-btz incluye una aplicación de escritorio **local**: un doble clic abre una ventana donde pegas uno o varios enlaces, eliges video o solo audio y la calidad, ves el progreso de cada descarga, puedes cancelarla y abrir la carpeta del resultado.
+
+- **Una ventana propia:** se abre en modo aplicación con Chrome, Edge, Brave o Chromium si tienes alguno instalado; si no, en tu navegador por defecto.
+- **Todo es local:** el servidor solo escucha en tu propio equipo (`127.0.0.1`) y no se publica nada en internet. Al cerrar la ventana, se apaga solo.
+- **La primera vez** muestra «Preparando la herramienta…» mientras instala `yt-dlp`, `ffmpeg` y `Deno`.
+- **Desde la terminal:** `vdl-btz gui` abre la misma ventana (con `--no-window` solo arranca el servidor).
+- **El CLI no cambia:** comandos como `vdl-btz help` siguen funcionando igual.
+
+---
+
+## Descargas
+
+Descarga la última versión desde [los Releases del proyecto](https://github.com/batuzav/vdl-btz/releases):
+
+| Tu equipo | Archivo | Qué es |
+|---|---|---|
+| Mac con chip Apple (M1 o posterior) | `vdl-btz-macos-arm64.dmg` | la app de escritorio |
+| Mac con procesador Intel | `vdl-btz-macos-x64.dmg` | la app de escritorio |
+| Linux (x86_64) | `vdl-btz-x86_64.AppImage` | la app de escritorio |
+| Windows 10/11 de 64 bits | `vdl-btz-windows-x64-setup.exe` | instalador de la app (experimental) |
+
+Para saber qué Mac tienes: menú Apple →  *Acerca de este Mac*, y mira si dice «Apple M…» o «Intel».
+
+Si prefieres usar solo la terminal sin instalar Ruby, también hay binarios de línea de comandos: `vdl-btz-macos-arm64`, `vdl-btz-macos-x64` y `vdl-btz-linux-x64`.
+
+---
+
+## Requisitos de sistema
+
+- **macOS 15** o superior (Intel o Apple Silicon), **Ubuntu 24.04** o superior (x86_64), o **Windows 10/11** de 64 bits.
+- **No hace falta instalar Ruby** para usar la app o los binarios.
+- **Internet la primera vez**, para instalar `yt-dlp`, `ffmpeg` y `Deno` (unos 40 MB; Deno es necesario para YouTube).
+- **Linux:** hace falta `unzip` (o un `tar` que abra archivos `.zip`) para instalar Deno. En Ubuntu: `sudo apt install unzip`.
+
+---
+
+## Si el sistema bloquea la app
+
+Las apps **no están firmadas** porque el proyecto es gratuito y no paga certificados de Apple ni de Microsoft. Por eso tu sistema puede mostrar un aviso la primera vez. La app es la misma que ves en el código; para abrirla:
+
+- **macOS:** haz clic derecho sobre `vdl-btz.app` → **Abrir** → **Abrir**. Si no aparece esa opción, en la terminal: `xattr -d com.apple.quarantine /Applications/vdl-btz.app` (ajusta la ruta si la guardaste en otro sitio).
+- **Windows:** si aparece el aviso de `SmartScreen`, pulsa **Más información** → **Ejecutar de todas formas**.
+- **Linux:** da permiso de ejecución al archivo: `chmod +x vdl-btz-x86_64.AppImage`.
 
 ---
 
 ## Requisitos
+
+> Esta sección es para usar el CLI instalándolo con Ruby. Si usas la app o los binarios, mira [Requisitos de sistema](#requisitos-de-sistema).
 
 Solo necesitas **Ruby 2.7 o superior**. Para comprobar si lo tienes:
 
@@ -46,7 +101,7 @@ Si no lo tienes:
 | **Linux (Fedora)** | `sudo dnf install ruby` |
 | **Windows** | Descarga el instalador de [rubyinstaller.org](https://rubyinstaller.org/) (versión *with Devkit*) |
 
-> No necesitas instalar `yt-dlp` ni `ffmpeg`: **vdl-btz los instala automáticamente la primera vez que lo usas.**
+> No necesitas instalar `yt-dlp`, `ffmpeg` ni `Deno`: **vdl-btz los instala automáticamente la primera vez que lo usas.**
 
 ---
 
@@ -55,8 +110,8 @@ Si no lo tienes:
 ### Opción 1: instalar como comando global (recomendado)
 
 ```bash
-git clone https://github.com/TU_USUARIO/download_videos_free.git
-cd download_videos_free
+git clone https://github.com/batuzav/vdl-btz.git
+cd vdl-btz
 gem build vdl-btz.gemspec
 gem install ./vdl-btz-0.1.0.gem
 ```
@@ -292,8 +347,8 @@ Si `ffmpeg` no se puede instalar, vdl-btz sigue funcionando: descarga el mejor a
 ## Desarrollo
 
 ```bash
-git clone https://github.com/TU_USUARIO/download_videos_free.git
-cd download_videos_free
+git clone https://github.com/batuzav/vdl-btz.git
+cd vdl-btz
 rake test                   # ejecutar los tests
 ruby bin/vdl-btz help       # probar sin instalar
 ```
@@ -301,13 +356,14 @@ ruby bin/vdl-btz help       # probar sin instalar
 Estructura del proyecto:
 
 ```
-download_videos_free/
+vdl-btz/
 ├── bin/vdl-btz                # punto de entrada del comando
 ├── lib/vdl_btz.rb
 ├── lib/vdl_btz/
 │   ├── cli.rb                 # comandos y opciones
 │   ├── downloader.rb          # ejecuta yt-dlp y procesa el progreso
-│   ├── installer.rb           # instala yt-dlp / ffmpeg según el sistema
+│   ├── installer.rb           # instala yt-dlp / ffmpeg / Deno según el sistema
+│   ├── gui/                   # app de escritorio: servidor local, API, cola, ventana y página
 │   ├── platform.rb            # detecta TikTok / YouTube / Instagram / Facebook
 │   ├── config.rb              # configuración en ~/.vdl-btz/config.yml
 │   ├── hints.rb               # traduce errores a sugerencias
@@ -315,6 +371,7 @@ download_videos_free/
 │   ├── os.rb                  # detección del sistema operativo
 │   ├── paths.rb               # rutas de la herramienta
 │   └── version.rb
+├── packaging/                 # .app/.dmg (macOS), AppImage (Linux) e instalador (Windows)
 ├── test/                      # tests con Minitest
 ├── vdl-btz.gemspec
 └── Rakefile
