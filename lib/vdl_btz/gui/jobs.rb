@@ -60,7 +60,7 @@ module VdlBtz
         raise Error, "URL inválida: #{bad}" if bad
 
         jobs = urls.map do |u|
-          Job.new(id: SecureRandom.hex(4), url: u, platform: Platform.detect(u), status: "queued", percent: 0,
+          Job.new(id: SecureRandom.hex(4), url: Platform.clean_url(u), platform: Platform.detect(u), status: "queued", percent: 0,
                   audio: audio, quality: quality)
         end
         @lock.synchronize { @jobs.concat(jobs) }

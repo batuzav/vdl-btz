@@ -86,4 +86,10 @@ class GuiJobsTest < Minitest::Test
     refute_includes ran, queued.id
     refute @q.cancel("nope")
   end
+
+  def test_youtube_playlist_params_are_dropped_from_the_job_url
+    queue { |_j, _c| Res.new(ok: true) }
+    job = @q.add(["https://www.youtube.com/watch?v=6-6aVn0wwYM&list=RD6-6aVn0wwYM&start_radio=1"], audio: false, quality: "best").first
+    assert_equal "https://www.youtube.com/watch?v=6-6aVn0wwYM", job.url
+  end
 end
