@@ -115,4 +115,42 @@ class PackagingTest < Minitest::Test
     upload = steps[(idx + 1)..].find { |s| s.dig("with", "path") == "dist/*.AppImage" }
     refute_nil upload, "falta la subida de dist/*.AppImage"
   end
+
+  WINDOWS = File.join(ROOT, "packaging", "windows")
+
+  def test_windows_launcher_runs_the_exe_hidden_without_waiting
+    vbs = File.read(File.join(WINDOWS, "vdl-btz-launcher.vbs"))
+    ["Run", 'vdl-btz.exe"" gui', ", 0, False"].each { |frag| assert_includes vbs, frag }
+  end
+
+  def test_windows_installer_script
+    iss = File.read(File.join(WINDOWS, "vdl-btz.iss"))
+    ["AppName=vdl-btz", "PrivilegesRequired=lowest", "OutputBaseFilename=vdl-btz-windows-x64-setup", "{sys}\\wscript.exe",
+     "vdl-btz-launcher.vbs", "vdl-btz.exe"].each { |frag| assert_includes iss, frag }
+  end
+
+  def test_workflow_matrix_has_experimental_windows_and_guards_generic_steps
+    binary = YAML.load_file(BUILD_YML).dig("jobs", "binary")
+    include = binary.dig("strategy", "matrix", "include")
+    assert_equal %w[macos-15 macos-15-intel ubuntu-24.04 windows-latest], include.map { |e| e["os"] }
+    assert_equal true, include.find { |e| e["os"] == "windows-latest" }["experimental"]
+    assert binary.key?("continue-on-error")
+    steps = binary["steps"]
+    named = ->(n) { steps.find { |s| s["name"] == n } }
+    ["Preparar entorno de Tebako", "Empaquetar con Tebako", "Prueba rápida del binario"].each do |n|
+      assert_equal "runner.os != 'Windows'", named.(n)["if"], n
+    end
+    assert_equal "bash", named.("Preparar carpeta de empaquetado")["shell"]
+  end
+
+  def test_workflow_windows_steps
+    steps = YAML.load_file(BUILD_YML).dig("jobs", "binary", "steps")
+    windows = steps.select { |s| s["if"] == "runner.os == 'Windows'" }
+    runs = windows.map { |s| s["run"].to_s }.join("\n")
+    assert_includes runs, "ridk enable ucrt64"
+    assert_match(/tebako press .*--output=vdl-btz-windows-x64\.exe/, runs)
+    assert_includes runs, "ISCC.exe"
+    assert_includes runs, "packaging\\windows\\vdl-btz.iss"
+    assert windows.any? { |s| s.dig("with", "path") == "dist/vdl-btz-windows-x64-setup.exe" }
+  end
 end

@@ -31,6 +31,7 @@ jobs:
     name: Binario ${{ matrix.target }}
     needs: test
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false   # si un sistema falla, los demás siguen
       matrix:
@@ -38,7 +39,8 @@ jobs:
           - { os: macos-15,       target: macos-arm64 }
           - { os: macos-15-intel, target: macos-x64 }
           - { os: ubuntu-24.04,   target: linux-x64 }
-          # Windows se añade en una segunda iteración (necesita MSYS2/MinGW).
+          # Windows es experimental: Tebako en Windows con el modo fat no está probado y no debe bloquear los demás.
+          - { os: windows-latest, target: windows-x64, experimental: true }
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +71,7 @@ jobs:
       # Se empaqueta solo bin/ y lib/. Sin Gemfile Tebako no necesita Bundler,
       # y el binario no lleva tests ni archivos de desarrollo.
       - name: Preparar carpeta de empaquetado
+        shell: bash
         run: |
           mkdir stage
           cp -R bin lib stage/
@@ -76,9 +79,11 @@ jobs:
       # `press` con runtime precompilado exige haber ejecutado `setup` antes
       # (prepara el entorno de Ruby y la herramienta mkdwarfs).
       - name: Preparar entorno de Tebako
+        if: runner.os != 'Windows'
         run: tebako setup --Ruby=3.3.7
 
       - name: Empaquetar con Tebako
+        if: runner.os != 'Windows'
         run: |
           tebako press \
             --root=stage \
@@ -88,6 +93,7 @@ jobs:
             --mode=fat
 
       - name: Prueba rápida del binario
+        if: runner.os != 'Windows'
         run: |
           chmod +x vdl-btz-${{ matrix.target }}
           ./vdl-btz-${{ matrix.target }} version
@@ -110,7 +116,42 @@ jobs:
           mkdir -p dist
           sh packaging/linux/make_appimage.sh vdl-btz-${{ matrix.target }} x86_64 dist
 
+      - name: Preparar MSYS2 para Tebako
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call gem install tebako -v 0.15.9
+          call ridk enable ucrt64
+          pacman -S --noconfirm git tar bison flex pactoys
+          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
+
+      # Cada paso arranca una shell nueva: el entorno de MSYS2 se activa dentro del mismo paso que compila.
+      - name: Empaquetar binario de Windows
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call ridk enable ucrt64
+          call tebako setup --Ruby=3.3.7
+          call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=fat
+
+      - name: Prueba rápida del binario de Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: ./vdl-btz-windows-x64.exe version
+
+      - name: Guardar versión del programa
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "VDL_VERSION=$(ruby -Ilib -e 'require "vdl_btz"; print VdlBtz::VERSION')" >> "$GITHUB_ENV"
+
+      - name: Crear instalador
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=%VDL_VERSION% packaging\windows\vdl-btz.iss
+
       - uses: actions/upload-artifact@v4
+        if: runner.os != 'Windows'
         with:
           name: vdl-btz-${{ matrix.target }}
           path: vdl-btz-${{ matrix.target }}
@@ -126,6 +167,12 @@ jobs:
         with:
           name: vdl-btz-${{ matrix.target }}-appimage
           path: dist/*.AppImage
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: vdl-btz-windows-x64-setup
+          path: dist/vdl-btz-windows-x64-setup.exe
 
   release:
     name: Publicar Release
