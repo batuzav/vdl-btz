@@ -132,7 +132,12 @@ EPICS.each do |e|
   outputs[f] = replace_region(File.read(f), "tasks", epic_region(e), f)
 end
 
-stale = outputs.reject { |f, text| File.exist?(f) && File.read(f) == text }.keys
+# tasks.json se compara ya interpretado: el formato de JSON.pretty_generate cambia entre versiones de Ruby (3.3 vs 3.4)
+same = lambda do |f, text|
+  next false unless File.exist?(f)
+  f.end_with?(".json") ? JSON.parse(File.read(f)) == JSON.parse(text) : File.read(f) == text
+end
+stale = outputs.reject { |f, text| same.call(f, text) }.keys
 if CHECK
   if stale.empty?
     puts "OK: tasks.json, blueprint.md y épicas coinciden con steps.yml"
