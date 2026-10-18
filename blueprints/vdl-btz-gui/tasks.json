@@ -355,7 +355,7 @@
       ".github/workflows/build.yml",
       "test/packaging_test.rb"
     ],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T3",

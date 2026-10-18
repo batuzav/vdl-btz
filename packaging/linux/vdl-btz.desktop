@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=vdl-btz
+Comment=Descarga videos de TikTok, YouTube, Instagram y Facebook
+Exec=vdl-btz gui
+Icon=vdl-btz
+Terminal=false
+Categories=Network;Utility;

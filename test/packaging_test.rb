@@ -68,4 +68,51 @@ class PackagingTest < Minitest::Test
     refute_nil upload, "falta la subida de dist/*.dmg"
     assert_equal "runner.os == 'macOS'", upload["if"]
   end
+
+  LINUX = File.join(ROOT, "packaging", "linux")
+  MAKE_APPIMAGE = File.join(LINUX, "make_appimage.sh")
+
+  def test_appimage_appdir_has_the_expected_layout
+    skip "no hay sh fiable en Windows" if VdlBtz::OS.windows?
+    Dir.mktmpdir do |dir|
+      log, status = sh("sh", MAKE_APPIMAGE, fake_binary(dir), "x86_64", dir, "--appdir-only")
+      assert status.success?, log
+      appdir = File.join(dir, "vdl-btz.AppDir")
+      assert File.file?(File.join(appdir, "usr", "bin", "vdl-btz"))
+      assert File.file?(File.join(appdir, "vdl-btz.desktop"))
+      assert File.file?(File.join(appdir, "vdl-btz.svg"))
+      app_run = File.join(appdir, "AppRun")
+      assert File.executable?(app_run)
+      assert_includes File.read(app_run), 'exec "$HERE/usr/bin/vdl-btz" gui'
+    end
+  end
+
+  def test_desktop_entry_and_icon
+    desktop = File.read(File.join(LINUX, "vdl-btz.desktop"))
+    ["Type=Application", "Name=vdl-btz", "Exec=vdl-btz gui", "Icon=vdl-btz", "Terminal=false", "Categories=Network;Utility;"].each do |line|
+      assert_includes desktop.lines.map(&:chomp), line
+    end
+    svg = File.read(File.join(LINUX, "vdl-btz.svg"))
+    assert svg.start_with?("<svg")
+    assert_includes svg, 'xmlns="http://www.w3.org/2000/svg"'
+  end
+
+  def test_appimage_without_appimagetool_exits_2_and_without_arguments_64
+    skip "no hay sh fiable en Windows" if VdlBtz::OS.windows?
+    Dir.mktmpdir do |dir|
+      out, status = Open3.capture2e({ "PATH" => "/usr/bin:/bin" }, "/bin/sh", MAKE_APPIMAGE, fake_binary(dir), "x86_64", dir)
+      assert_equal 2, status.exitstatus
+      assert_includes out, "appimagetool no encontrado"
+    end
+    assert_equal 64, sh("sh", MAKE_APPIMAGE).last.exitstatus
+  end
+
+  def test_workflow_packages_the_linux_appimage
+    steps = YAML.load_file(BUILD_YML).dig("jobs", "binary", "steps")
+    idx = steps.index { |s| s["run"].to_s.include?("packaging/linux/make_appimage.sh") }
+    refute_nil idx, "falta el paso que ejecuta make_appimage.sh"
+    assert_equal "runner.os == 'Linux'", steps[idx]["if"]
+    upload = steps[(idx + 1)..].find { |s| s.dig("with", "path") == "dist/*.AppImage" }
+    refute_nil upload, "falta la subida de dist/*.AppImage"
+  end
 end

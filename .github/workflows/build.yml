@@ -99,6 +99,17 @@ jobs:
           mkdir -p dist
           sh packaging/macos/make_app.sh vdl-btz-${{ matrix.target }} ${{ matrix.target }} "$(ruby -Ilib -e 'require "vdl_btz"; print VdlBtz::VERSION')" dist
 
+      - name: Descargar appimagetool
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage && chmod +x appimagetool && sudo mv appimagetool /usr/local/bin/
+
+      - name: Empaquetar AppImage
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist
+          sh packaging/linux/make_appimage.sh vdl-btz-${{ matrix.target }} x86_64 dist
+
       - uses: actions/upload-artifact@v4
         with:
           name: vdl-btz-${{ matrix.target }}
@@ -109,6 +120,12 @@ jobs:
         with:
           name: vdl-btz-${{ matrix.target }}-app
           path: dist/*.dmg
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: vdl-btz-${{ matrix.target }}-appimage
+          path: dist/*.AppImage
 
   release:
     name: Publicar Release
