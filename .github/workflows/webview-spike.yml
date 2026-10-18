@@ -1,0 +1,40 @@
+name: Webview spike
+
+# Experimento aislado (no forma parte del flujo de lanzamiento): ¿compila y carga la gema webview_ruby2 en cada sistema?
+# Se ejecuta a mano desde la pestaña Actions. El resultado de cada sistema queda en el resumen del trabajo.
+on:
+  workflow_dispatch:
+
+jobs:
+  spike:
+    name: Webview en ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Dependencias de WebKitGTK (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+
+      - name: Instalar webview_ruby2
+        run: gem install webview_ruby2 -v 0.2.6
+
+      # always(): si la gema no compila, igualmente se anota FAIL; el trabajo nunca falla por esto.
+      - name: Comprobar que la gema carga
+        if: always()
+        shell: bash
+        run: |
+          if ruby -e 'require "webview_ruby"; puts "WEBVIEW_LOAD_OK"'; then
+            echo "${{ matrix.os }}: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "${{ matrix.os }}: FAIL" >> "$GITHUB_STEP_SUMMARY"
+          fi
