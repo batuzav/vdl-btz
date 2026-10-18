@@ -220,6 +220,7 @@ Reglas completas: `CLAUDE.md`. Reglas de área: `.claude/rules/ruby-gui.md`, `.c
 
 Listed in the same order as `tasks.json`. That order is the build order — work top to bottom and do not re-rank by priority or by what looks quick.
 
+<!-- GENERATED:tasks BEGIN — no editar a mano: lo genera blueprints/source/sync.rb desde blueprints/source/vdl-btz-gui/steps.yml -->
 ### `E2-T1` — Add jobs API routes and wire the gui command
 
 **Depends on:** `E1-T2`, `E1-T5` · **Priority:** p0 — metadata for scope cuts, not a running order
@@ -460,6 +461,7 @@ git tag step-10-window-shell
 ```
 
 Run both after the last `Verify` command exits 0, before starting the next task. The tag is this task's rollback target; if the next task goes wrong, `git reset --hard` to *this* tag rather than debugging forward.
+<!-- GENERATED:tasks END -->
 
 ---
 

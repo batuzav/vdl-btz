@@ -452,6 +452,8 @@ Quince pasos, de la base segura a la entrega. Quien construya sigue el orden exa
 
 **Cómo se ejecuta cada paso.** `Do` → `Done when` → `Verify` → `Checkpoint`. Todos los comandos se ejecutan desde la **raíz del proyecto** (el directorio que contiene `Rakefile` y `bin/vdl-btz`), nunca desde `blueprints/`. Cada línea de `Verify` termina con estado 0 cuando el paso es correcto. La comprobación de estado de git (archivos rastreados) vive en el `Checkpoint`, después del commit, porque en el momento del `Verify` los archivos nuevos todavía no se han añadido (regla 14).
 
+**Fuente única.** El mapa y los pasos de esta sección, `tasks.json` y los bloques de tarea de las épicas son tres vistas de `blueprints/source/vdl-btz-gui/steps.yml`. Para cambiar un paso se edita esa fuente y se ejecuta `ruby blueprints/source/sync.rb vdl-btz-gui`; lo que va entre los marcadores `GENERATED` no se edita a mano (`--check` lo comprueba y `rake test` también). Solo el `status` de `tasks.json` se escribe directamente.
+
 **Estilo del código (skill `ponytail`).** Si la skill `ponytail` está instalada, se aplica en todo el build: el cambio más pequeño que resuelve el paso completo, sin abstracciones, opciones ni dependencias que nadie pidió, y una prueba pequeña para la lógica nueva. Si no está instalada, se aplica la misma regla a mano (ver §18).
 
 **Por qué este orden.**
@@ -463,6 +465,7 @@ Quince pasos, de la base segura a la entrega. Quien construya sigue el orden exa
 
 El contrato de la página (ids del DOM, diseño y tokens) se repite en cada épica y en §19.6; las pruebas de los pasos 8 y 9 lo comprueban de forma mecánica.
 
+<!-- GENERATED:steps BEGIN — no editar a mano: lo genera blueprints/source/sync.rb desde blueprints/source/vdl-btz-gui/steps.yml -->
 ### Step map
 
 | # | Paso | Depende de | Toca | Compuerta |
@@ -962,6 +965,7 @@ git ls-files --error-unmatch .github/workflows/webview-spike.yml   # expect: exi
 git ls-files --error-unmatch docs/webview-spike.md   # expect: exit 0 — the new file is now committed
 # last step: step-15-webview-spike is the final rollback target
 ```
+<!-- GENERATED:steps END -->
 
 
 ### 9.1 Parity and cutover

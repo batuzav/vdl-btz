@@ -13,6 +13,7 @@ Herramienta en Ruby para descargar videos de TikTok, YouTube, Instagram y Facebo
 | All tests | `rake test` |
 | One test file | `ruby -Ilib -Itest test/<name>_test.rb` |
 | Build the gem | `gem build vdl-btz.gemspec` |
+| Sync the blueprint | `ruby blueprints/source/sync.rb vdl-btz-gui` (`--check` only verifies) |
 | Lint / typecheck | none defined in this project |
 
 **Gate:** `rake test` must exit 0 before any task is marked done.
@@ -101,3 +102,4 @@ Convenciones por área; léelas antes de editar esa zona:
 5. No implementes nada de la tabla de no-objetivos del plano (hosting, cuentas, historial, firma de pago, auto-actualización, webview como requisito).
 6. Nunca confirmes secretos, `.env` ni salidas de compilación (`dist/`).
 7. Nunca marques un paso como hecho con una compuerta en rojo ni edites un comando `verify`.
+8. **El plano tiene una fuente única:** `blueprints/source/vdl-btz-gui/steps.yml`. El mapa y los pasos de §9, los criterios y `verify` de `tasks.json` y los bloques de tarea de las épicas (lo que va entre marcadores `GENERATED`) se generan con `ruby blueprints/source/sync.rb vdl-btz-gui`: se edita la fuente y se sincroniza, nunca esas zonas a mano. De `tasks.json` solo se escribe `status` (el generador lo conserva).

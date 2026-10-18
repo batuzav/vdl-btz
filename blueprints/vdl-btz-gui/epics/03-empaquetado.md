@@ -107,6 +107,7 @@ Reglas completas: `CLAUDE.md`. Reglas de área: `.claude/rules/packaging.md` y `
 
 Listed in the same order as `tasks.json`. That order is the build order — work top to bottom and do not re-rank by priority or by what looks quick.
 
+<!-- GENERATED:tasks BEGIN — no editar a mano: lo genera blueprints/source/sync.rb desde blueprints/source/vdl-btz-gui/steps.yml -->
 ### `E3-T1` — Package the macOS app bundle and dmg
 
 **Depends on:** `E2-T5` · **Priority:** p1 — metadata for scope cuts, not a running order
@@ -336,6 +337,7 @@ git tag step-15-webview-spike
 ```
 
 Run both after the last `Verify` command exits 0, before starting the next task. The tag is this task's rollback target; if the next task goes wrong, `git reset --hard` to *this* tag rather than debugging forward.
+<!-- GENERATED:tasks END -->
 
 ---
 

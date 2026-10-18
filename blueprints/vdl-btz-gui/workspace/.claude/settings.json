@@ -9,6 +9,7 @@
       "Bash(ruby -Ilib -Itest test/:*)",
       "Bash(ruby -Ilib -Itest -e:*)",
       "Bash(ruby bin/vdl-btz:*)",
+      "Bash(ruby blueprints/source/sync.rb:*)",
       "Bash(ruby -ryaml:*)",
       "Bash(ruby -rjson:*)",
       "Bash(ruby -e:*)",
