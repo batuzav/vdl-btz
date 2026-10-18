@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.7"
 
-  spec.files = Dir["lib/**/*.rb", "bin/*", "README.md", "LICENSE"]
+  spec.files = Dir["lib/**/*.{rb,html,css,js,woff2}", "bin/*", "README.md", "LICENSE"]
   spec.bindir = "bin"
   spec.executables = ["vdl-btz"]
   spec.require_paths = ["lib"]

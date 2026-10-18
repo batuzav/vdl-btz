@@ -2,6 +2,7 @@
 
 require "optparse"
 require "openssl"
+require "securerandom"
 
 module VdlBtz
   # Interfaz de línea de comandos.
@@ -12,9 +13,10 @@ module VdlBtz
       exit(new.run(argv))
     end
 
-    def initialize(installer: Installer.new, config: Config.load)
+    def initialize(installer: Installer.new, config: Config.load, shell: GUI::Shell)
       @installer = installer
       @config = config
+      @shell = shell
     end
 
     # Devuelve el código de salida.
@@ -28,6 +30,7 @@ module VdlBtz
       when "doctor" then doctor
       when "info" then info(argv.drop(1))
       when "config" then config_cmd(argv.drop(1))
+      when "gui" then gui(argv.drop(1))
       else download(argv)
       end
     rescue OptionParser::ParseError, Error => e
@@ -97,7 +100,8 @@ module VdlBtz
       url = opts[:urls].first
       raise Error, "Uso: vdl-btz info URL" unless url && Platform.valid_url?(url)
 
-      downloader = Downloader.new(ytdlp: @installer.ensure_ytdlp!, cookies: opts[:cookies], output: opts[:output])
+      downloader = Downloader.new(ytdlp: @installer.ensure_ytdlp!, cookies: opts[:cookies], output: opts[:output],
+                                  js_runtime: @installer.deno_path)
       UI.info("Consultando #{Platform.display_name(Platform.detect(url))}...")
       data = downloader.info(url)
 
@@ -191,6 +195,28 @@ module VdlBtz
       0
     end
 
+    def gui(argv)
+      opts = { window: true, port: 0, idle: nil }
+      OptionParser.new do |o|
+        o.on("--no-window") { opts[:window] = false }
+        o.on("--port N", Integer) { |v| opts[:port] = v }
+        o.on("--idle-timeout S", Integer) { |v| opts[:idle] = v }
+      end.parse!(argv)
+      opts[:idle] ||= 20 if opts[:window] # sin ventana abierta (o cerrada) no hay latidos: el servidor se apaga solo
+      token = SecureRandom.hex(16)
+      queue = GUI::JobQueue.new(runner: GUI::JobQueue.downloader_runner(installer: @installer, config: @config))
+      api = GUI::Api.new(queue: queue, config: @config, installer: @installer)
+      server = GUI::Server.new(token: token, handler: api, port: opts[:port], idle_timeout: opts[:idle])
+      port = server.start
+      url = "http://127.0.0.1:#{port}/?t=#{token}"
+      puts "URL: #{url}"
+      $stdout.flush
+      puts "Abre esta dirección en tu navegador: #{url}" if opts[:window] && @shell.launch(url) == :manual
+      server.join
+      queue.shutdown
+      0
+    end
+
     def version
       UI.say("vdl-btz #{VERSION}")
       0
@@ -206,6 +232,7 @@ module VdlBtz
           vdl-btz setup [--force]             Instala/reinstala yt-dlp y ffmpeg
           vdl-btz update                      Actualiza el motor de descarga
           vdl-btz doctor                      Revisa que todo funcione
+          vdl-btz gui [--no-window]           Abre la aplicación de escritorio
           vdl-btz config [set CLAVE VALOR]    Ver o cambiar la configuración
           vdl-btz version                     Muestra la versión
 
@@ -232,10 +259,11 @@ module VdlBtz
     def build_downloader(opts)
       ytdlp = @installer.ensure_ytdlp!
       ffmpeg = @installer.ensure_ffmpeg
+      deno = @installer.ensure_deno
       UI.warn("ffmpeg no disponible: el audio se guardará en su formato original (no MP3)") if opts[:audio] && !ffmpeg
 
       Downloader.new(
-        ytdlp: ytdlp, ffmpeg: ffmpeg,
+        ytdlp: ytdlp, ffmpeg: ffmpeg, js_runtime: deno,
         output: opts[:output], quality: opts[:quality], audio: opts[:audio],
         cookies: opts[:cookies], playlist: opts[:playlist]
       )

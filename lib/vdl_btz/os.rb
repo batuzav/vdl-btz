@@ -44,6 +44,24 @@ module VdlBtz
       windows? ? "#{name}.exe" : name
     end
 
+    # Abre una carpeta en el explorador del sistema (array de argumentos, nunca una cadena de shell).
+    def open_path(path)
+      args = windows? ? ["explorer", path] : [mac? ? "open" : "xdg-open", path]
+      Process.detach(Process.spawn(*args, out: File::NULL, err: File::NULL))
+      true
+    rescue SystemCallError
+      false
+    end
+
+    # Abre una URL en el navegador por defecto (array de argumentos, nunca una cadena de shell).
+    def open_url(url)
+      args = windows? ? ["cmd", "/c", "start", "", url] : [mac? ? "open" : "xdg-open", url]
+      Process.detach(Process.spawn(*args, out: File::NULL, err: File::NULL))
+      true
+    rescue SystemCallError
+      false
+    end
+
     # Busca un comando en el PATH. Devuelve la ruta completa o nil.
     def which(cmd)
       exts = windows? ? ENV.fetch("PATHEXT", ".EXE;.BAT;.CMD").split(";") : [""]

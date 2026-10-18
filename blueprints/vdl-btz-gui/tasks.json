@@ -1,0 +1,445 @@
+[
+  {
+    "id": "E1-T1",
+    "title": "Add local server and gui --no-window command",
+    "epic": "01-nucleo",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `ruby bin/vdl-btz gui --no-window` starts THE SYSTEM SHALL print as the first line of stdout exactly `URL: http://127.0.0.1:<port>/?t=<token>` where `<port>` is a non-zero integer and `<token>` is 32 lowercase hexadecimal characters.",
+      "WHEN `GET /api/health` is requested with header `X-VDL-Token` equal to that token THE SYSTEM SHALL respond `200` with `{\"ok\":true,\"data\":{\"version\":...}}` where `data.version` equals `VdlBtz::VERSION`.",
+      "WHEN any `/api/` path is requested without the `X-VDL-Token` header, or with a different value, THE SYSTEM SHALL respond `401` with `{\"ok\":false,\"error\":{\"code\":\"unauthorized\",...}}`.",
+      "WHEN an unknown path is requested with a valid token THE SYSTEM SHALL respond `404` with error code `not_found`.",
+      "WHEN `POST /api/shutdown` is requested with the valid token THE SYSTEM SHALL respond `200` and the `gui` process SHALL exit with status 0 within 5 seconds.",
+      "WHEN `ruby bin/vdl-btz version` runs THE SYSTEM SHALL still print `vdl-btz <VdlBtz::VERSION>`, and WHEN `ruby bin/vdl-btz` runs with no arguments THE SYSTEM SHALL still print the help text containing `vdl-btz URL` and exit 0."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_boot_test.rb  # expect: exit 0, 0 failures, 0 errors (this runs the real entry point `bin/vdl-btz gui`)",
+      "ruby bin/vdl-btz version | grep -q '^vdl-btz [0-9]'  # expect: exit 0 (frozen CLI still works)",
+      "ruby bin/vdl-btz | grep -q 'vdl-btz URL'  # expect: exit 0 (no arguments still prints the help)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-01-gui-server-boot",
+    "files": [
+      "lib/vdl_btz/gui/server.rb",
+      "lib/vdl_btz.rb",
+      "lib/vdl_btz/cli.rb",
+      "test/gui_boot_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E1-T2",
+    "title": "Harden server with host check, limits and idle timeout",
+    "epic": "01-nucleo",
+    "dependencies": [
+      "E1-T1"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN a request carries a `Host` header other than `127.0.0.1:<port>` or `localhost:<port>` THE SYSTEM SHALL respond `403` with error code `bad_host` before any route runs.",
+      "WHEN a request announces `Content-Length` greater than 65536 THE SYSTEM SHALL respond `413` with error code `too_large` and close the connection.",
+      "WHEN the request line is malformed THE SYSTEM SHALL respond `400` with error code `bad_request`, and WHEN a known path is requested with a valid token and an unsupported method (for example `POST /api/health`) THE SYSTEM SHALL respond `405` with error code `method_not_allowed`.",
+      "WHEN any response is sent, including errors, THE SYSTEM SHALL include the headers `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Content-Security-Policy: default-src 'self'; img-src 'self' data:; frame-ancestors 'none'`.",
+      "WHEN the server was created with `idle_timeout: 1` and no authenticated `POST /api/ping` arrives for 1 second THE SYSTEM SHALL stop, and WHEN a ping arrives before the second elapses THE SYSTEM SHALL keep running.",
+      "WHEN `ruby bin/vdl-btz gui --no-window --idle-timeout 2` runs and nothing pings it THE SYSTEM SHALL exit with status 0 within 6 seconds."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_server_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -Ilib -Itest test/gui_boot_test.rb  # expect: exit 0, 0 failures, 0 errors (step 1 gate still passes)",
+      "ruby bin/vdl-btz gui --no-window --idle-timeout 2 | head -1 | grep -q '^URL: http://127.0.0.1:[0-9]*/?t=[0-9a-f]\\{32\\}$'  # expect: exit 0, and the server exits by itself after about 2 s",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-02-gui-server-hardening",
+    "files": [
+      "lib/vdl_btz/gui/server.rb",
+      "lib/vdl_btz/cli.rb",
+      "test/gui_server_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E1-T3",
+    "title": "Add cancel support to Downloader",
+    "epic": "01-nucleo",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `Downloader#cancel!` is called while `#download` is running THE SYSTEM SHALL terminate the child process and `#download` SHALL return a `Result` with `ok` false, `canceled` true and `error` `Cancelado` within 5 seconds.",
+      "WHEN `#download` has returned after a cancel THE SYSTEM SHALL leave no running child process (`Process.kill(0, pid)` raises `Errno::ESRCH`).",
+      "WHEN `#cancel!` is called while no download is running THE SYSTEM SHALL return without raising an error.",
+      "WHEN a `Result` is built without the `canceled` keyword THE SYSTEM SHALL report `canceled` as nil.",
+      "WHEN `rake test` runs THE SYSTEM SHALL exit 0 with the existing downloader tests unchanged in behaviour.",
+      "WHEN `Downloader` is built with `js_runtime: <path>` THE SYSTEM SHALL add `--js-runtimes deno:<path>` to the arguments of both `build_args` and `info`, and WHEN `js_runtime` is absent THE SYSTEM SHALL add no `--js-runtimes` argument."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/downloader_test.rb  # expect: exit 0, 0 failures, 0 errors (the cancel cases are skipped on Windows only)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-03-downloader-cancel",
+    "files": [
+      "lib/vdl_btz/downloader.rb",
+      "test/downloader_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E1-T4",
+    "title": "Verify yt-dlp SHA-256 and report install progress",
+    "epic": "01-nucleo",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `Installer.verify_sha256!(path, sums, asset)` is called with a file whose SHA-256 equals the entry for `asset` in `sums` THE SYSTEM SHALL return true.",
+      "WHEN the digest differs from the entry THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains `SHA-256`.",
+      "WHEN `asset` has no entry in `sums` THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains `SHA-256`.",
+      "WHEN `install_ytdlp` downloads yt-dlp THE SYSTEM SHALL fetch `SHA2-256SUMS` from the same release URL and verify the file before `chmod` and before moving it into `bin_dir`; on a mismatch THE SYSTEM SHALL raise `VdlBtz::Error`, leave no `yt-dlp` file and no `.part` file in `bin_dir`.",
+      "WHEN `on_progress` is set and a download body arrives in chunks THE SYSTEM SHALL call `on_progress.call(label, percent)` once per chunk with `percent` between 0 and 100.",
+      "WHEN `Installer#ensure_deno!` runs without a Deno in `bin_dir` THE SYSTEM SHALL download the `deno-<arch>-<os>` zip and its `.sha256sum` from the Deno release, verify the zip with `verify_sha256!` before extracting it and install an executable `deno` in `bin_dir`; on a checksum mismatch it SHALL raise `VdlBtz::Error` mentioning `SHA-256` and install nothing, and `ensure_deno` SHALL then return nil with a warning instead of raising."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/installer_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-04-installer-integrity",
+    "files": [
+      "lib/vdl_btz/installer.rb",
+      "lib/vdl_btz/cli.rb",
+      "test/installer_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E1-T5",
+    "title": "Add in-memory download job queue",
+    "epic": "01-nucleo",
+    "dependencies": [
+      "E1-T3"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `JobQueue#add(urls, audio:, quality:)` receives only valid http(s) URLs THE SYSTEM SHALL return one job per URL, each with a unique `id` and `status` `queued` or `running`, and with `url` passed through `Platform.clean_url`, which reduces a YouTube video link carrying `list` to the bare video link (dropping `list`, `index` and `start_radio` and keeping other parameters) and leaves playlist links, other sites and invalid text unchanged.",
+      "WHEN any URL is invalid according to `Platform.valid_url?` THE SYSTEM SHALL raise `VdlBtz::Error` whose message contains that URL and SHALL enqueue none of the URLs.",
+      "WHEN more jobs than `workers` are added THE SYSTEM SHALL run at most `workers` jobs at the same time.",
+      "WHEN the runner reports `ok` true THE SYSTEM SHALL set the job to `done` with its `file`, and WHEN it reports `ok` false with an `error` THE SYSTEM SHALL set the job to `error` and fill `hint` from `Hints.for(error)`.",
+      "WHEN `cancel(id)` is called THE SYSTEM SHALL mark a queued job `canceled` without running it, run the registered `on_cancel` block for a running job and end it `canceled`, and return false for an unknown id.",
+      "WHEN `list` is called THE SYSTEM SHALL return the jobs in insertion order as hashes with exactly the keys `id, url, platform, status, title, percent, speed, eta, file, error, hint, audio, quality`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_jobs_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-05-job-queue",
+    "files": [
+      "lib/vdl_btz/gui/jobs.rb",
+      "lib/vdl_btz.rb",
+      "lib/vdl_btz/platform.rb",
+      "test/gui_jobs_test.rb",
+      "test/platform_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E2-T1",
+    "title": "Add jobs API routes and wire the gui command",
+    "epic": "02-pantalla",
+    "dependencies": [
+      "E1-T2",
+      "E1-T5"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `GET /api/state` is requested with a valid token THE SYSTEM SHALL respond `200` with `data` containing the keys `version, os, config, qualities, browsers, setup`, where `setup` contains the keys `ytdlp, ffmpeg, deno, running, label, percent, error`.",
+      "WHEN `POST /api/jobs` receives `{\"urls\":[\"https://youtu.be/abc123\"],\"audio\":false,\"quality\":\"720\"}` and yt-dlp is installed THE SYSTEM SHALL respond `202` with `data.jobs` holding one job whose `status` is `queued` or `running`.",
+      "WHEN the body is not a JSON object, or `urls` is missing, empty, longer than 20 or not strings, or a URL is invalid, or `quality` is not in `Config::QUALITIES`, THE SYSTEM SHALL respond `400` with the codes `bad_json`, `no_urls`, `invalid_url` or `invalid_quality` respectively and enqueue nothing.",
+      "WHEN `POST /api/jobs` arrives while yt-dlp is not installed THE SYSTEM SHALL respond `409` with error code `setup_required` and enqueue nothing.",
+      "WHEN `GET /api/jobs` is requested THE SYSTEM SHALL respond `200` with `data.jobs`, and WHEN `POST /api/jobs/<id>/cancel` targets a known job THE SYSTEM SHALL respond `200` and for an unknown id `404` with error code `not_found`.",
+      "WHEN `ruby bin/vdl-btz gui --no-window` is running THE SYSTEM SHALL answer `GET /api/jobs` with `200` and `data.jobs` equal to `[]`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_api_jobs_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -Ilib -Itest test/gui_boot_test.rb  # expect: exit 0, 0 failures, 0 errors (earlier gate still passes)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-06-api-jobs",
+    "files": [
+      "lib/vdl_btz/gui/api.rb",
+      "lib/vdl_btz/gui/server.rb",
+      "lib/vdl_btz.rb",
+      "lib/vdl_btz/cli.rb",
+      "test/gui_api_jobs_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E2-T2",
+    "title": "Add settings, engine update and open-folder API",
+    "epic": "02-pantalla",
+    "dependencies": [
+      "E1-T4",
+      "E2-T1"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `POST /api/config` receives valid values for `output`, `quality` and `cookies` THE SYSTEM SHALL write them to the file at `Paths.config_file` and respond `200` with `data.config` reflecting them.",
+      "WHEN any submitted config value is invalid (for example `quality` `999` or `cookies` `netscape`) THE SYSTEM SHALL respond `400` with error code `invalid_config` and leave the config file byte-for-byte unchanged.",
+      "WHEN `POST /api/setup` is requested and yt-dlp, ffmpeg or Deno is missing THE SYSTEM SHALL respond `202`, run `ensure_ytdlp!`, `ensure_ffmpeg` and `ensure_deno!` in that order in a background thread (ffmpeg is optional: its failure SHALL NOT stop Deno from being installed), expose `setup.running`, `setup.label` and `setup.percent` through `GET /api/state` while `on_progress` is called, and finish with `running` false.",
+      "WHEN the background install raises an error THE SYSTEM SHALL set `setup.error` to the error message with `running` false, and WHEN `POST /api/setup` or `POST /api/engine/update` arrives while `running` is true THE SYSTEM SHALL respond `409` with error code `already_running`.",
+      "WHEN `POST /api/engine/update` is requested THE SYSTEM SHALL respond `202` and run `install_ytdlp` in a background thread with the same `setup` fields.",
+      "WHEN `POST /api/open` receives the id of a job that has a `file` THE SYSTEM SHALL call the opener with that file's directory and respond `200`; for an unknown id or a job without `file` it SHALL respond `404` with error code `no_file`; for `{}` it SHALL create the configured output folder if missing and open it; and WHEN any test runs THE SYSTEM SHALL have `ENV[\"HOME\"]` equal to the temporary `ENV[\"VDL_BTZ_HOME\"]`, so `Dir.home` never points at the real home folder."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest -e 'require \"test_helper\"; abort(\"HOME is not isolated\") unless ENV[\"HOME\"] == ENV[\"VDL_BTZ_HOME\"] && Dir.home == ENV[\"HOME\"]'  # expect: exit 0 (tests never touch the real home folder)",
+      "ruby -Ilib -Itest test/gui_api_settings_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -Ilib -Itest test/gui_api_jobs_test.rb  # expect: exit 0, 0 failures, 0 errors (step 6 gate still passes)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-07-api-settings",
+    "files": [
+      "lib/vdl_btz/gui/api.rb",
+      "lib/vdl_btz/os.rb",
+      "test/test_helper.rb",
+      "test/gui_api_settings_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E2-T3",
+    "title": "Serve the newspaper-style page and its assets",
+    "epic": "02-pantalla",
+    "dependencies": [
+      "E2-T1"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `GET /?t=<token>` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/html; charset=utf-8` and a body containing `<meta name=\"vdl-token\" content=\"<token>\">`, and WHEN `t` is missing or wrong THE SYSTEM SHALL respond `401` with the JSON error code `unauthorized`.",
+      "WHEN the served HTML is inspected THE SYSTEM SHALL contain every element id of the DOM contract (`masthead`, `dateline`, `theme-toggle`, `setup`, `setup-label`, `setup-progress`, `form-add`, `urls`, `mode-video`, `mode-audio`, `quality`, `btn-add`, `msg`, `jobs`, `empty`, `cfg-output`, `cfg-quality`, `cfg-cookies`, `btn-save-config`, `btn-update-engine`, `legal`), no inline `<script>` content and no `style=` attribute, and the `jobs` list SHALL carry `tabindex=\"0\"` so the scrollable list can be reached with the keyboard.",
+      "WHEN `GET /assets/app.css` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/css; charset=utf-8` and a body containing the literals `--paper:#ece9e1`, `--ink:#000000`, `--paper:#0c0b09`, `--ink:#ede8db`, `prefers-color-scheme`, `Hanken Grotesk`, `Space Mono` and a rule giving `#jobs` the declaration `overflow-y:auto`.",
+      "WHEN the three files under `/assets/fonts/` are requested THE SYSTEM SHALL respond `200` with `Content-Type: font/woff2` and bodies whose SHA-256 digests are `1f21c6eaa0000f3329cfcfac966b43d5bebf5aa610303e33294ac31bc6f4bb59` (`hanken-grotesk-var.woff2`), `e0c8e616bda27642f4c3cebaecff6525d901e73afc8a227cbbb0f2af4810f300` (`space-mono-400.woff2`) and `af7cf6d2b897ec453acdcdacde4e9bcc8410718af5914de865b453e09f10eebc` (`space-mono-700.woff2`).",
+      "WHEN a path outside the allowlist is requested (`/assets/unknown.js`, `/assets/../server.rb`, `/assets/fonts/../../server.rb`) THE SYSTEM SHALL respond `404` with error code `not_found`.",
+      "WHEN `vdl-btz.gemspec` is loaded with `Gem::Specification.load` THE SYSTEM SHALL list `lib/vdl_btz/gui/assets/index.html`, `lib/vdl_btz/gui/assets/app.css` and the three `lib/vdl_btz/gui/assets/fonts/*.woff2` files in `files`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_assets_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -e 'abort(\"gemspec misses assets\") unless Gem::Specification.load(\"vdl-btz.gemspec\").files.include?(\"lib/vdl_btz/gui/assets/app.css\")'  # expect: exit 0",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-08-static-page",
+    "files": [
+      "lib/vdl_btz/gui/assets/index.html",
+      "lib/vdl_btz/gui/assets/app.css",
+      "lib/vdl_btz/gui/server.rb",
+      "vdl-btz.gemspec",
+      "test/gui_assets_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E2-T4",
+    "title": "Add the page behaviour in app.js",
+    "epic": "02-pantalla",
+    "dependencies": [
+      "E2-T2",
+      "E2-T3"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `app.js` is read THE SYSTEM SHALL contain none of `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval(` and `document.write`.",
+      "WHEN every `getElementById(\"<id>\")` literal in `app.js` is extracted THE SYSTEM SHALL find each `<id>` as an `id` attribute in `index.html`.",
+      "WHEN `app.js` is read THE SYSTEM SHALL contain the strings `/api/ping`, `/api/state`, `/api/jobs`, `/api/setup`, `/api/config`, `/api/engine/update`, `/api/open` and `X-VDL-Token`.",
+      "WHEN `GET /assets/app.js` is requested THE SYSTEM SHALL respond `200` with `Content-Type: text/javascript; charset=utf-8`.",
+      "WHEN `node` is installed and `node --check lib/vdl_btz/gui/assets/app.js` runs THE SYSTEM SHALL exit 0."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_assets_test.rb  # expect: exit 0, 0 failures, 0 errors (the node syntax case is skipped when node is missing)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-09-app-behavior",
+    "files": [
+      "lib/vdl_btz/gui/assets/app.js",
+      "lib/vdl_btz/gui/assets/index.html",
+      "test/gui_assets_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E2-T5",
+    "title": "Open the app window with browser fallback",
+    "epic": "02-pantalla",
+    "dependencies": [
+      "E2-T2",
+      "E2-T4"
+    ],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `Shell.window_args(exe, url, profile_dir)` is called THE SYSTEM SHALL return exactly `[exe, \"--app=<url>\", \"--user-data-dir=<profile_dir>\", \"--no-first-run\", \"--window-size=980,780\"]`.",
+      "WHEN `Shell.candidates(:mac)` is called THE SYSTEM SHALL return, in this order, `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, `/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`, `/Applications/Brave Browser.app/Contents/MacOS/Brave Browser` and `/Applications/Chromium.app/Contents/MacOS/Chromium`.",
+      "WHEN `Shell.launch` finds an existing candidate THE SYSTEM SHALL spawn it with `window_args` and return `:app_window`; WHEN none exists and the opener succeeds it SHALL return `:browser`; otherwise `:manual`.",
+      "WHEN `OS.open_url` builds its command THE SYSTEM SHALL use an argument array `[\"open\", url]` on macOS, `[\"cmd\", \"/c\", \"start\", \"\", url]` on Windows and `[\"xdg-open\", url]` on Linux, never a shell string.",
+      "WHEN `vdl-btz gui` runs without `--no-window` THE SYSTEM SHALL start the server with `idle_timeout` 20 unless overridden, print the `URL:` line, call `Shell.launch` with that URL and, when it returns `:manual`, print `Abre esta dirección en tu navegador: <url>`.",
+      "WHEN `vdl-btz gui --no-window` runs THE SYSTEM SHALL NOT call `Shell.launch`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/gui_shell_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -Ilib -Itest test/gui_boot_test.rb  # expect: exit 0, 0 failures, 0 errors (the --no-window path still works end to end)",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-10-window-shell",
+    "files": [
+      "lib/vdl_btz/gui/shell.rb",
+      "lib/vdl_btz/os.rb",
+      "lib/vdl_btz/cli.rb",
+      "lib/vdl_btz.rb",
+      "test/gui_shell_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E3-T1",
+    "title": "Package the macOS app bundle and dmg",
+    "epic": "03-empaquetado",
+    "dependencies": [
+      "E2-T5"
+    ],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `sh packaging/macos/make_app.sh <binary> <arch> <version> <outdir>` runs on macOS THE SYSTEM SHALL create `<outdir>/vdl-btz.app/Contents/MacOS/vdl-btz`, an executable `Contents/MacOS/vdl-btz-launcher` and `Contents/Info.plist`.",
+      "WHEN the launcher file is read THE SYSTEM SHALL contain the line `exec \"$(dirname \"$0\")/vdl-btz\" gui`.",
+      "WHEN `plutil -lint` runs on the generated `Info.plist` THE SYSTEM SHALL exit 0, with `CFBundleIdentifier` equal to `com.batuzav.vdl-btz`, `CFBundleExecutable` equal to `vdl-btz-launcher`, `CFBundleShortVersionString` equal to `<version>` and `LSMinimumSystemVersion` equal to `15.0`.",
+      "WHEN `codesign --verify --deep --strict` runs on the generated app THE SYSTEM SHALL exit 0, and WHEN `hdiutil verify` runs on `<outdir>/vdl-btz-<arch>.dmg` THE SYSTEM SHALL exit 0.",
+      "WHEN the script is run with missing arguments THE SYSTEM SHALL exit with status 64 and print a usage line.",
+      "WHEN `.github/workflows/build.yml` is parsed as YAML THE SYSTEM SHALL be valid and its `binary` job SHALL contain a step running `packaging/macos/make_app.sh` guarded by `runner.os == 'macOS'`, followed by an artifact upload of `dist/*.dmg`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/packaging_test.rb  # expect: exit 0, 0 failures, 0 errors (macOS-only cases are skipped elsewhere)",
+      "ruby -ryaml -e 'YAML.load_file(\".github/workflows/build.yml\")'  # expect: exit 0",
+      "sh packaging/macos/make_app.sh; test $? -eq 64  # expect: exit code 64 (usage) -> this line exits 0",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-11-macos-package",
+    "files": [
+      "packaging/macos/make_app.sh",
+      ".github/workflows/build.yml",
+      ".gitignore",
+      "test/packaging_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E3-T2",
+    "title": "Package the Linux AppImage",
+    "epic": "03-empaquetado",
+    "dependencies": [
+      "E3-T1"
+    ],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `sh packaging/linux/make_appimage.sh <binary> x86_64 <outdir> --appdir-only` runs THE SYSTEM SHALL exit 0 and create `<outdir>/vdl-btz.AppDir` containing `usr/bin/vdl-btz`, an executable `AppRun`, `vdl-btz.desktop` and `vdl-btz.svg`.",
+      "WHEN `AppRun` is read THE SYSTEM SHALL contain the line `exec \"$HERE/usr/bin/vdl-btz\" gui`.",
+      "WHEN `vdl-btz.desktop` is read THE SYSTEM SHALL contain the lines `Type=Application`, `Name=vdl-btz`, `Exec=vdl-btz gui`, `Icon=vdl-btz`, `Terminal=false` and `Categories=Network;Utility;`.",
+      "WHEN `vdl-btz.svg` is read THE SYSTEM SHALL start with `<svg` and contain `xmlns=\"http://www.w3.org/2000/svg\"`.",
+      "WHEN the script runs without `--appdir-only` and `appimagetool` is not on `PATH` THE SYSTEM SHALL print `appimagetool no encontrado` and exit with status 2.",
+      "WHEN `.github/workflows/build.yml` is parsed as YAML THE SYSTEM SHALL be valid and contain a step guarded by `runner.os == 'Linux'` that runs `packaging/linux/make_appimage.sh`, followed by an artifact upload of `dist/*.AppImage`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/packaging_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -ryaml -e 'YAML.load_file(\".github/workflows/build.yml\")'  # expect: exit 0",
+      "sh packaging/linux/make_appimage.sh; test $? -eq 64  # expect: exit code 64 (usage) -> this line exits 0",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-12-linux-package",
+    "files": [
+      "packaging/linux/make_appimage.sh",
+      "packaging/linux/vdl-btz.desktop",
+      "packaging/linux/vdl-btz.svg",
+      ".github/workflows/build.yml",
+      "test/packaging_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E3-T3",
+    "title": "Build the Windows binary, hidden launcher and installer",
+    "epic": "03-empaquetado",
+    "dependencies": [
+      "E3-T2"
+    ],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `vdl-btz-launcher.vbs` is read THE SYSTEM SHALL run `vdl-btz.exe` with the argument `gui` using window style 0 and without waiting (`, 0, False`).",
+      "WHEN `vdl-btz.iss` is read THE SYSTEM SHALL declare `AppName=vdl-btz`, `PrivilegesRequired=lowest` and `OutputBaseFilename=vdl-btz-windows-x64-setup`, install `vdl-btz.exe` and `vdl-btz-launcher.vbs`, and create a Start Menu icon whose `Filename` is `{sys}\\wscript.exe` with the launcher as parameter.",
+      "WHEN `.github/workflows/build.yml` is parsed as YAML THE SYSTEM SHALL be valid and its `jobs.binary.strategy.matrix.include` SHALL contain entries with `os` equal to `macos-15`, `macos-15-intel`, `ubuntu-24.04` and `windows-latest`, the last with `experimental` true.",
+      "WHEN the `binary` job definition is read THE SYSTEM SHALL carry `continue-on-error` driven by `matrix.experimental`, so a Windows failure does not fail the macOS and Linux builds.",
+      "WHEN the Windows-guarded steps are read THE SYSTEM SHALL include `ridk enable ucrt64`, `tebako press` with `--output=vdl-btz-windows-x64.exe`, an `ISCC.exe` call on `packaging\\windows\\vdl-btz.iss` and an artifact upload of `dist/vdl-btz-windows-x64-setup.exe`.",
+      "WHEN the generic steps `Preparar entorno de Tebako`, `Empaquetar con Tebako` and `Prueba rápida del binario` are read THE SYSTEM SHALL carry `if: runner.os != 'Windows'`, and the step `Preparar carpeta de empaquetado` SHALL declare `shell: bash`."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/packaging_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "ruby -ryaml -e 'YAML.load_file(\".github/workflows/build.yml\")'  # expect: exit 0",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-13-windows-package",
+    "files": [
+      "packaging/windows/vdl-btz.iss",
+      "packaging/windows/vdl-btz-launcher.vbs",
+      ".github/workflows/build.yml",
+      "test/packaging_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E3-T4",
+    "title": "Document the desktop app, downloads and OS warnings",
+    "epic": "03-empaquetado",
+    "dependencies": [
+      "E3-T3"
+    ],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `README.md` is read THE SYSTEM SHALL contain the level-2 headings `## App de escritorio`, `## Descargas`, `## Requisitos de sistema`, `## Si el sistema bloquea la app` and `## Aviso legal`.",
+      "WHEN the `## Descargas` section is read THE SYSTEM SHALL name `vdl-btz-macos-arm64`, `vdl-btz-macos-x64`, `vdl-btz-linux-x64` and `vdl-btz-windows-x64-setup.exe` and contain `https://github.com/batuzav/vdl-btz/releases`.",
+      "WHEN the `## Si el sistema bloquea la app` section is read THE SYSTEM SHALL contain `xattr -d com.apple.quarantine` and `SmartScreen`.",
+      "WHEN the `## Requisitos de sistema` section is read THE SYSTEM SHALL contain `macOS 15` and `Ubuntu 24.04`.",
+      "WHEN the `## App de escritorio` section is read THE SYSTEM SHALL contain `vdl-btz help`, stating that CLI commands are unchanged.",
+      "WHEN every relative Markdown link in `README.md` is resolved THE SYSTEM SHALL find an existing file for each."
+    ],
+    "verify": [
+      "ruby -Ilib -Itest test/readme_test.rb  # expect: exit 0, 0 failures, 0 errors",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-14-readme-desktop",
+    "files": [
+      "README.md",
+      "test/readme_test.rb"
+    ],
+    "status": "done"
+  },
+  {
+    "id": "E3-T5",
+    "title": "Add the optional webview technical spike",
+    "epic": "03-empaquetado",
+    "dependencies": [
+      "E3-T4"
+    ],
+    "priority": "p2",
+    "acceptance": [
+      "WHEN `.github/workflows/webview-spike.yml` is parsed as YAML THE SYSTEM SHALL be valid, be triggered only by `workflow_dispatch` and define a matrix over `macos-15`, `ubuntu-24.04` and `windows-latest`.",
+      "WHEN the workflow text is read THE SYSTEM SHALL contain `gem install webview_ruby2 -v 0.2.6` and `require \"webview_ruby\"` and `WEBVIEW_LOAD_OK`.",
+      "WHEN `docs/webview-spike.md` is read THE SYSTEM SHALL contain a table with the rows `macOS`, `Linux` and `Windows`, a `Resultado` column whose initial value is `PENDIENTE`, and the decision rule mentioning `app-window`."
+    ],
+    "verify": [
+      "ruby -ryaml -e 'w = YAML.load_file(\".github/workflows/webview-spike.yml\"); t = w[\"on\"] || w[true]; abort(\"bad trigger\") unless t.keys == [\"workflow_dispatch\"]'  # expect: exit 0",
+      "grep -q 'gem install webview_ruby2 -v 0.2.6' .github/workflows/webview-spike.yml  # expect: exit 0",
+      "grep -q 'WEBVIEW_LOAD_OK' .github/workflows/webview-spike.yml  # expect: exit 0",
+      "grep -q 'PENDIENTE' docs/webview-spike.md  # expect: exit 0",
+      "grep -q 'app-window' docs/webview-spike.md  # expect: exit 0",
+      "rake test  # expect: exit 0, 0 failures, 0 errors"
+    ],
+    "checkpoint": "step-15-webview-spike",
+    "files": [
+      ".github/workflows/webview-spike.yml",
+      "docs/webview-spike.md"
+    ],
+    "status": "done"
+  }
+]

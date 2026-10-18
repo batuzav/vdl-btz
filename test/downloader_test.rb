@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
+require "timeout"
 
 class DownloaderTest < Minitest::Test
   URL = "https://youtu.be/abc"
@@ -49,5 +51,37 @@ class DownloaderTest < Minitest::Test
     assert_equal "chrome", value_after(args, "--cookies-from-browser")
     assert_includes args, "--yes-playlist"
     assert_includes args_for, "--no-playlist"
+  end
+
+  def test_cancel_terminates_the_child_process
+    skip "POSIX only" if VdlBtz::OS.windows?
+    Dir.mktmpdir do |dir|
+      fake = File.join(dir, "fake-ytdlp")
+      File.write(fake, "#!/bin/sh\nexec sleep 30\n")
+      File.chmod(0o755, fake)
+      d = VdlBtz::Downloader.new(ytdlp: fake, output: dir)
+      result = nil
+      th = Thread.new { result = d.download(URL) }
+      Timeout.timeout(5) { sleep 0.05 until d.pid }
+      pid = d.pid
+      d.cancel!
+      assert th.join(5), "download did not return after cancel!"
+      refute result.ok
+      assert result.canceled
+      assert_equal "Cancelado", result.error
+      assert_raises(Errno::ESRCH) { Process.kill(0, pid) }
+    end
+  end
+
+  def test_cancel_without_download_and_default_canceled
+    d = VdlBtz::Downloader.new(ytdlp: "yt-dlp", output: "/tmp/out")
+    assert_nil d.cancel!
+    assert_nil VdlBtz::Downloader::Result.new(url: "u", ok: true).canceled
+  end
+
+  def test_js_runtime_is_passed_to_ytdlp_only_when_present
+    args = args_for(js_runtime: "/bin/deno")
+    assert_equal "deno:/bin/deno", value_after(args, "--js-runtimes")
+    refute_includes args_for, "--js-runtimes"
   end
 end

@@ -5,6 +5,7 @@ require "uri"
 require "fileutils"
 require "tmpdir"
 require "open3"
+require "digest"
 
 module VdlBtz
   # Instala y localiza las dependencias externas (yt-dlp y ffmpeg).
@@ -13,12 +14,24 @@ module VdlBtz
     YTDLP_RELEASES = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/"
     FFMPEG_BUILDS = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/"
     EVERMEET = "https://evermeet.cx/ffmpeg/getrelease/"
+    DENO_RELEASES = "https://github.com/denoland/deno/releases/latest/download/"
 
-    def initialize(bin_dir: Paths.bin_dir)
+    def initialize(bin_dir: Paths.bin_dir, on_progress: nil)
       @bin_dir = bin_dir
+      @on_progress = on_progress
     end
 
     attr_reader :bin_dir
+    attr_accessor :on_progress
+
+    # Comprueba el SHA-256 de `path` contra la línea de `asset` en el texto de SHA2-256SUMS.
+    def self.verify_sha256!(path, sums_text, asset)
+      expected = sums_text.each_line.filter_map { |l| l.chomp.match(/\A([0-9a-f]{64})  (.+)\z/) }
+                          .find { |m| m[2] == asset }&.then { |m| m[1] }
+      return true if expected && Digest::SHA256.file(path).hexdigest == expected
+
+      raise Error, "La verificación SHA-256 de #{asset} falló"
+    end
 
     # ---------- Localizar ----------
 
@@ -36,6 +49,11 @@ module VdlBtz
 
     def ytdlp_path
       find("yt-dlp")
+    end
+
+    # YouTube exige un entorno de JavaScript (Deno) para resolver sus desafíos; sin él faltan formatos.
+    def deno_path
+      find("deno")
     end
 
     def ffmpeg_path
@@ -60,6 +78,22 @@ module VdlBtz
       end
     end
 
+    def ensure_deno!
+      deno_path || begin
+        UI.info("Instalando el entorno de JavaScript que YouTube necesita (Deno)...")
+        install_deno
+      end
+    end
+
+    # Deno es opcional para el CLI: si no se puede instalar, devuelve nil y solo fallarán algunos videos de YouTube.
+    def ensure_deno
+      ensure_deno!
+    rescue StandardError => e
+      UI.warn("No se pudo instalar Deno: #{e.message}")
+      UI.hint("Algunos videos de YouTube pueden fallar. Reintenta con: vdl-btz setup")
+      nil
+    end
+
     # ffmpeg es opcional: si no se puede instalar, devuelve nil y se descarga sin él.
     def ensure_ffmpeg
       path = ffmpeg_path
@@ -82,7 +116,10 @@ module VdlBtz
       FileUtils.mkdir_p(bin_dir)
       target = managed_path("yt-dlp")
       tmp = "#{target}.part"
+      sums = "#{target}.sums.part"
       download(YTDLP_RELEASES + ytdlp_asset, tmp, label: "yt-dlp")
+      download(YTDLP_RELEASES + "SHA2-256SUMS", sums, label: "SHA2-256SUMS")
+      Installer.verify_sha256!(tmp, File.read(sums), ytdlp_asset)
       FileUtils.chmod(0o755, tmp)
       FileUtils.mv(tmp, target, force: true)
 
@@ -92,7 +129,36 @@ module VdlBtz
       UI.success("yt-dlp #{version} instalado")
       target
     ensure
-      FileUtils.rm_f(tmp) if tmp
+      FileUtils.rm_f([tmp, sums].compact)
+    end
+
+    # Nombre del .zip de Deno publicado para este sistema (se verifica con su .sha256sum).
+    def deno_asset
+      arch = OS.arm? ? "aarch64" : "x86_64"
+      target = if OS.windows? then "pc-windows-msvc" elsif OS.mac? then "apple-darwin" else "unknown-linux-gnu" end
+      "deno-#{arch}-#{target}.zip"
+    end
+
+    def install_deno
+      FileUtils.mkdir_p(bin_dir)
+      asset = deno_asset
+      Dir.mktmpdir("vdl-btz") do |tmp|
+        zip = File.join(tmp, asset)
+        download(DENO_RELEASES + asset, zip, label: "deno")
+        download("#{DENO_RELEASES}#{asset}.sha256sum", "#{zip}.sha256sum", label: "deno SHA-256")
+        Installer.verify_sha256!(zip, File.read("#{zip}.sha256sum"), asset)
+        extract(zip, File.join(tmp, "out"))
+        found = Dir.glob(File.join(tmp, "out", "**", OS.exe("deno"))).find { |f| File.file?(f) }
+        raise Error, "No se encontró deno dentro del paquete descargado." unless found
+
+        FileUtils.cp(found, managed_path("deno"))
+        FileUtils.chmod(0o755, managed_path("deno"))
+      end
+      version = version_of(managed_path("deno"), "--version")
+      raise Error, "deno se descargó pero no se puede ejecutar en este sistema." unless version
+
+      UI.success("deno #{version[/\d+(\.\d+)+/]} instalado")
+      managed_path("deno")
     end
 
     def install_ffmpeg
@@ -163,13 +229,20 @@ module VdlBtz
       end
     end
 
-    # `tar` viene incluido en macOS, Linux y Windows 10+ y entiende .zip y .tar.xz.
+    # `tar` viene incluido en macOS y Windows 10+ y entiende .zip y .tar.xz; el tar de GNU (Linux) no abre .zip: ahí se usa `unzip`.
     def extract(archive, dest)
       FileUtils.mkdir_p(dest)
-      _out, status = Open3.capture2e("tar", "-xf", archive, "-C", dest)
-      raise Error, "No se pudo descomprimir #{File.basename(archive)} (¿está instalado 'tar'?)" unless status.success?
+      commands = [["tar", "-xf", archive, "-C", dest]]
+      commands << ["unzip", "-o", "-q", archive, "-d", dest] if archive.end_with?(".zip")
+      return if commands.any? { |cmd| run_ok?(*cmd) }
+
+      raise Error, "No se pudo descomprimir #{File.basename(archive)} (instala 'tar' o 'unzip')."
+    end
+
+    def run_ok?(*cmd)
+      Open3.capture2e(*cmd).last.success?
     rescue Errno::ENOENT
-      raise Error, "No se encontró el comando 'tar' para descomprimir ffmpeg."
+      false
     end
 
     # Descarga HTTP(S) con soporte de redirecciones y barra de progreso.
@@ -204,6 +277,7 @@ module VdlBtz
           done += chunk.bytesize
           pct = total.positive? ? done * 100.0 / total : 0
           UI.progress(pct, "#{label}  #{UI.human_size(done)} / #{UI.human_size(total)}")
+          @on_progress&.call(label, pct)
         end
       end
       UI.end_progress

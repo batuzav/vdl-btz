@@ -41,6 +41,22 @@ module VdlBtz
       "otros"
     end
 
+    PLAYLIST_PARAMS = %w[list index start_radio].freeze
+
+    # Un enlace de video de YouTube con lista (&list=...) se reduce al video: se quitan list, index y start_radio.
+    # Los enlaces de playlist pura (sin v=) y los de otros sitios no se tocan.
+    def clean_url(url)
+      return url unless detect(url) == "youtube"
+
+      uri = URI.parse(url.strip)
+      params = URI.decode_www_form(uri.query.to_s)
+      return url unless params.assoc("list") && (params.assoc("v") || uri.host.to_s.end_with?("youtu.be"))
+
+      kept = params.reject { |k, _| PLAYLIST_PARAMS.include?(k) }
+      uri.query = kept.empty? ? nil : URI.encode_www_form(kept)
+      uri.to_s
+    end
+
     def display_name(key)
       NAMES.fetch(key, key.to_s)
     end
