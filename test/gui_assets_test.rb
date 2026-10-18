@@ -77,4 +77,37 @@ class GuiAssetsTest < Minitest::Test
       assert_includes files, "lib/vdl_btz/gui/assets/#{f}"
     end
   end
+
+  APP_JS = File.expand_path("../lib/vdl_btz/gui/assets/app.js", __dir__)
+  APP_HTML = File.expand_path("../lib/vdl_btz/gui/assets/index.html", __dir__)
+
+  def test_app_js_has_none_of_the_forbidden_constructs
+    js = File.read(APP_JS)
+    %w[innerHTML outerHTML insertAdjacentHTML eval( document.write].each { |bad| refute_includes js, bad }
+  end
+
+  def test_app_js_only_uses_ids_that_exist_in_the_page
+    js = File.read(APP_JS)
+    html = File.read(APP_HTML)
+    ids = js.scan(/getElementById\("([^"]+)"\)/).flatten
+    refute_empty ids
+    ids.each { |id| assert_includes html, %(id="#{id}"), "app.js uses unknown id #{id}" }
+  end
+
+  def test_app_js_talks_to_every_documented_route
+    js = File.read(APP_JS)
+    %w[/api/ping /api/state /api/jobs /api/setup /api/config /api/engine/update /api/open X-VDL-Token].each do |s|
+      assert_includes js, s
+    end
+  end
+
+  def test_app_js_is_served
+    res = get("/assets/app.js")
+    assert_equal ["200", "text/javascript; charset=utf-8"], [res.code, res["Content-Type"]]
+  end
+
+  def test_app_js_syntax_when_node_is_available
+    skip "node no está instalado" unless system("node --version", out: File::NULL, err: File::NULL)
+    assert system("node", "--check", APP_JS), "node --check failed"
+  end
 end
