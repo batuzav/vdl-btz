@@ -29,7 +29,14 @@ section{border-top:2px solid var(--rule);padding:16px 0 32px}
 h2{margin:0 0 16px;font-weight:700;font-size:1.1rem;text-transform:uppercase;letter-spacing:.06em}
 .num{margin-right:8px;color:var(--ink-soft)}
 .cols{display:grid;grid-template-columns:1fr;gap:0 32px}
-@media (min-width:900px){.cols{grid-template-columns:1.15fr 1fr}.cols .col+.col{border-left:1px solid var(--rule);padding-left:32px}}
+@media (min-width:900px){
+  .cols{grid-template-columns:1.15fr 1fr}
+  /* La cola ocupa el alto de la columna izquierda y hace scroll por dentro: sin hueco en blanco cuando hay muchas descargas. */
+  .cols .col+.col{position:relative;border-left:1px solid var(--rule);padding-left:32px}
+  .cols .col+.col>section{position:absolute;inset:0 0 0 32px;display:flex;flex-direction:column;padding-bottom:0}
+  .cols .col+.col #jobs{flex:1 1 0;min-height:0;overflow-y:auto}
+}
+@media (max-width:899px){#jobs{max-height:70vh;overflow-y:auto}}
 
 /* Formularios */
 label{display:block;margin:16px 0 4px;color:var(--ink-soft)}

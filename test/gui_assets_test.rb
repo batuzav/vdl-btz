@@ -110,4 +110,9 @@ class GuiAssetsTest < Minitest::Test
     skip "node no está instalado" unless system("node --version", out: File::NULL, err: File::NULL)
     assert system("node", "--check", APP_JS), "node --check failed"
   end
+
+  def test_queue_list_scrolls_and_can_be_reached_with_the_keyboard
+    assert_match(/#jobs\{[^}]*overflow-y:auto/, get("/assets/app.css").body)
+    assert_match(/<ol id="jobs"[^>]*tabindex="0"/, get("/?t=#{TOKEN}").body)
+  end
 end
