@@ -13,9 +13,10 @@ module VdlBtz
       exit(new.run(argv))
     end
 
-    def initialize(installer: Installer.new, config: Config.load)
+    def initialize(installer: Installer.new, config: Config.load, shell: GUI::Shell)
       @installer = installer
       @config = config
+      @shell = shell
     end
 
     # Devuelve el código de salida.
@@ -200,15 +201,16 @@ module VdlBtz
         o.on("--port N", Integer) { |v| opts[:port] = v }
         o.on("--idle-timeout S", Integer) { |v| opts[:idle] = v }
       end.parse!(argv)
-      raise Error, "La ventana todavía no está disponible; usa --no-window" if opts[:window]
-
+      opts[:idle] ||= 20 if opts[:window] # sin ventana abierta (o cerrada) no hay latidos: el servidor se apaga solo
       token = SecureRandom.hex(16)
       queue = GUI::JobQueue.new(runner: GUI::JobQueue.downloader_runner(installer: @installer, config: @config))
       api = GUI::Api.new(queue: queue, config: @config, installer: @installer)
       server = GUI::Server.new(token: token, handler: api, port: opts[:port], idle_timeout: opts[:idle])
       port = server.start
-      puts "URL: http://127.0.0.1:#{port}/?t=#{token}"
+      url = "http://127.0.0.1:#{port}/?t=#{token}"
+      puts "URL: #{url}"
       $stdout.flush
+      puts "Abre esta dirección en tu navegador: #{url}" if opts[:window] && @shell.launch(url) == :manual
       server.join
       queue.shutdown
       0
