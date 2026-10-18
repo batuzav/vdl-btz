@@ -303,7 +303,7 @@
     ],
     "priority": "p1",
     "acceptance": [
-      "WHEN `sh packaging/macos/make_app.sh <binary> <arch> <version> <outdir>` runs on macOS THE SYSTEM SHALL create `<outdir>/vdl-btz.app/Contents/MacOS/vdl-btz`, an executable `Contents/MacOS/vdl-btz-launcher` and `Contents/Info.plist`.",
+      "WHEN `sh packaging/macos/make_app.sh <binary> <arch> <version> <outdir>` runs on macOS THE SYSTEM SHALL create `<outdir>/vdl-btz.app/Contents/Resources/vdl-btz`, an executable `Contents/MacOS/vdl-btz-launcher` and `Contents/Info.plist`.",
       "WHEN the launcher file is read THE SYSTEM SHALL contain the line `exec \"$(dirname \"$0\")/vdl-btz\" gui`.",
       "WHEN `plutil -lint` runs on the generated `Info.plist` THE SYSTEM SHALL exit 0, with `CFBundleIdentifier` equal to `com.batuzav.vdl-btz`, `CFBundleExecutable` equal to `vdl-btz-launcher`, `CFBundleShortVersionString` equal to `<version>` and `LSMinimumSystemVersion` equal to `15.0`.",
       "WHEN `codesign --verify --deep --strict` runs on the generated app THE SYSTEM SHALL exit 0, and WHEN `hdiutil verify` runs on `<outdir>/vdl-btz-<arch>.dmg` THE SYSTEM SHALL exit 0.",
