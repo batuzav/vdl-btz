@@ -132,7 +132,7 @@
       "lib/vdl_btz.rb",
       "test/gui_jobs_test.rb"
     ],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T1",
