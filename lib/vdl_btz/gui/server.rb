@@ -4,13 +4,16 @@ require "socket"
 require "json"
 require "securerandom"
 require "openssl"
+require "uri"
 
 module VdlBtz
   module GUI
-    # Servidor HTTP local mínimo (solo 127.0.0.1).
+    Request = Struct.new(:method, :path, :query, :headers, :body, keyword_init: true)
+
+    # Servidor HTTP local mínimo (solo 127.0.0.1). Las rutas que no son suyas las delega en `handler`.
     class Server
-      REASONS = { 200 => "OK", 400 => "Bad Request", 401 => "Unauthorized", 403 => "Forbidden", 404 => "Not Found",
-                  405 => "Method Not Allowed", 413 => "Payload Too Large" }.freeze
+      REASONS = { 200 => "OK", 202 => "Accepted", 400 => "Bad Request", 401 => "Unauthorized", 403 => "Forbidden",
+                  404 => "Not Found", 405 => "Method Not Allowed", 409 => "Conflict", 413 => "Payload Too Large" }.freeze
       METHODS = { "/api/health" => "GET", "/api/shutdown" => "POST", "/api/ping" => "POST" }.freeze
       MAX_BODY = 65_536
       SECURITY = {
@@ -66,10 +69,9 @@ module VdlBtz
       end
 
       def serve(sock)
-        status, payload, method, path = handle(sock)
-        body = JSON.generate(payload)
+        status, extra, body, method, path = handle(sock)
         head = { "Content-Type" => "application/json; charset=utf-8", "Content-Length" => body.bytesize.to_s,
-                 "Connection" => "close" }.merge(SECURITY)
+                 "Connection" => "close" }.merge(SECURITY).merge(extra)
         sock.write("HTTP/1.1 #{status} #{REASONS[status]}\r\n#{head.map { |k, v| "#{k}: #{v}" }.join("\r\n")}\r\n\r\n#{body}")
         stop if method == "POST" && path == "/api/shutdown" && status == 200
       rescue StandardError
@@ -80,34 +82,36 @@ module VdlBtz
 
       def handle(sock)
         method, target, version = sock.gets.to_s.split(" ")
-        return [400, error("bad_request", "Petición mal formada")] unless version.to_s.start_with?("HTTP/1.")
+        return [400, {}, error("bad_request", "Petición mal formada")] unless version.to_s.start_with?("HTTP/1.")
 
         headers = {}
         while (h = sock.gets) && h != "\r\n"
           k, v = h.split(":", 2)
           headers[k.downcase] = v.to_s.strip
         end
-        path = target.split("?", 2).first
-        return [403, error("bad_host", "Host no permitido")] unless allowed_host?(headers["host"])
-        return [413, error("too_large", "Cuerpo demasiado grande")] if headers["content-length"].to_i > MAX_BODY
+        path, query = target.split("?", 2)
+        return [403, {}, error("bad_host", "Host no permitido")] unless allowed_host?(headers["host"])
+        return [413, {}, error("too_large", "Cuerpo demasiado grande")] if headers["content-length"].to_i > MAX_BODY
 
-        sock.read(headers["content-length"].to_i)
-        [*route(method, path, headers), method, path]
+        body = sock.read(headers["content-length"].to_i).to_s
+        req = Request.new(method: method, path: path, query: URI.decode_www_form(query.to_s).to_h, headers: headers, body: body)
+        [*route(req), method, path]
       end
 
       def allowed_host?(host)
         ["127.0.0.1:#{@port}", "localhost:#{@port}"].include?(host)
       end
 
-      def route(method, path, headers)
-        return [401, error("unauthorized", "Token inválido")] if path.start_with?("/api/") && !authorized?(headers)
-        return [405, error("method_not_allowed", "Método no permitido")] if METHODS.key?(path) && METHODS[path] != method
+      def route(req)
+        path = req.path
+        return [401, {}, error("unauthorized", "Token inválido")] if path.start_with?("/api/") && !authorized?(req.headers)
+        return [405, {}, error("method_not_allowed", "Método no permitido")] if METHODS.key?(path) && METHODS[path] != req.method
 
         case path
-        when "/api/health" then [200, { ok: true, data: { version: VERSION } }]
-        when "/api/shutdown" then [200, { ok: true, data: {} }]
-        when "/api/ping" then touch && [200, { ok: true, data: {} }]
-        else [404, error("not_found", "Ruta no encontrada")]
+        when "/api/health" then [200, {}, JSON.generate(ok: true, data: { version: VERSION })]
+        when "/api/shutdown" then [200, {}, JSON.generate(ok: true, data: {})]
+        when "/api/ping" then touch && [200, {}, JSON.generate(ok: true, data: {})]
+        else @handler&.call(req) || [404, {}, error("not_found", "Ruta no encontrada")]
         end
       end
 
@@ -117,7 +121,7 @@ module VdlBtz
       end
 
       def error(code, message)
-        { ok: false, error: { code: code, message: message } }
+        JSON.generate(ok: false, error: { code: code, message: message })
       end
     end
   end

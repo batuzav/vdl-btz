@@ -203,11 +203,14 @@ module VdlBtz
       raise Error, "La ventana todavía no está disponible; usa --no-window" if opts[:window]
 
       token = SecureRandom.hex(16)
-      server = GUI::Server.new(token: token, port: opts[:port], idle_timeout: opts[:idle])
+      queue = GUI::JobQueue.new(runner: GUI::JobQueue.downloader_runner(installer: @installer, config: @config))
+      api = GUI::Api.new(queue: queue, config: @config, installer: @installer)
+      server = GUI::Server.new(token: token, handler: api, port: opts[:port], idle_timeout: opts[:idle])
       port = server.start
       puts "URL: http://127.0.0.1:#{port}/?t=#{token}"
       $stdout.flush
       server.join
+      queue.shutdown
       0
     end
 
