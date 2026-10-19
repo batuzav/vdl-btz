@@ -123,7 +123,7 @@ jobs:
           call gem install tebako -v 0.15.9
           call ridk enable ucrt64
           pacman -S --noconfirm git tar bison flex pactoys
-          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
+          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p ninja:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
 
       # Cada paso arranca una shell nueva: el entorno de MSYS2 se activa dentro del mismo paso que compila.
       - name: Empaquetar binario de Windows
@@ -131,6 +131,8 @@ jobs:
         shell: cmd
         run: |
           call ridk enable ucrt64
+          rem Ninja evita que CMake use mingw32-make junto al sh.exe de MSYS2 (rompe las rutas con barra invertida).
+          set CMAKE_GENERATOR=Ninja
           call tebako setup --Ruby=3.3.7
           call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=fat
 
