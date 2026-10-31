@@ -120,12 +120,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          call gem install tebako -v 0.15.9
+          call gem install tebako -v 0.13.4
           call ridk enable ucrt64
           pacman -S --noconfirm git tar bison flex pactoys make
           bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
 
-      # Parches a Tebako 0.15.9 (se aplican al gem instalado):
+      # Parches a Tebako 0.13.4 (se aplican al gem instalado):
       # 1. Tebako fuerza `-G "MinGW Makefiles"`, que escribe recetas de cmd.exe; con sh.exe en el PATH
       #    (MSYS2/Git) make las ejecuta con sh y falla ("'mTC_xxx.dir' is not recognized").
       #    "MSYS Makefiles" es el generador pensado para ese caso. Ninja no sirve: Tebako avisa que rompe `press`.
@@ -137,7 +137,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          dir="$(dirname "$(gem contents tebako -v 0.15.9 | grep 'lib/tebako/scenario_manager.rb$')")/../.."
+          dir="$(dirname "$(gem contents tebako -v 0.13.4 | grep 'lib/tebako/scenario_manager.rb$')")/../.."
           sed -i 's/"MinGW Makefiles"/"MSYS Makefiles"/' "$dir/lib/tebako/scenario_manager.rb"
           sed -i 's|\${RUBY_SOURCE_DIR}/configure |./configure CC=gcc CXX=g++ |' "$dir/CMakeLists.txt"
           grep -n 'MSYS Makefiles' "$dir/lib/tebako/scenario_manager.rb"
@@ -153,8 +153,8 @@ jobs:
           set CC=gcc
           set CXX=g++
           call tebako setup --Ruby=3.3.7
-          rem Tebako 0.15.9 no publica runtime precompilado para Windows (fat/lean lo exigen): modo bundle, compilado desde el código.
-          call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=bundle --runtime=source
+          rem Tebako 0.15.9 no tiene runtime precompilado para Windows (fat/lean) y su modo bundle falla al enlazar: se usa 0.13.4.
+          call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=bundle
 
       - name: Diagnóstico de Tebako (Windows)
         if: failure() && runner.os == 'Windows'
