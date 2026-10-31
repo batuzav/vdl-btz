@@ -120,15 +120,15 @@ class PackagingTest < Minitest::Test
 
   WINDOWS = File.join(ROOT, "packaging", "windows")
 
-  def test_windows_launcher_runs_the_exe_hidden_without_waiting
+  def test_windows_launcher_runs_the_bundled_ruby_hidden_without_waiting
     vbs = File.read(File.join(WINDOWS, "vdl-btz-launcher.vbs"))
-    ["Run", 'vdl-btz.exe"" gui', ", 0, False"].each { |frag| assert_includes vbs, frag }
+    ["Run", 'ruby\\bin\\ruby.exe', 'app\\bin\\vdl-btz"" gui', ", 0, False"].each { |frag| assert_includes vbs, frag }
   end
 
   def test_windows_installer_script
     iss = File.read(File.join(WINDOWS, "vdl-btz.iss"))
     ["AppName=vdl-btz", "PrivilegesRequired=lowest", "OutputBaseFilename=vdl-btz-windows-x64-setup", "{sys}\\wscript.exe",
-     "vdl-btz-launcher.vbs", "vdl-btz.exe"].each { |frag| assert_includes iss, frag }
+     "vdl-btz-launcher.vbs", "stage-win"].each { |frag| assert_includes iss, frag }
   end
 
   def test_workflow_matrix_has_experimental_windows_and_guards_generic_steps
@@ -149,8 +149,9 @@ class PackagingTest < Minitest::Test
     steps = YAML.load_file(BUILD_YML).dig("jobs", "binary", "steps")
     windows = steps.select { |s| s["if"] == "runner.os == 'Windows'" }
     runs = windows.map { |s| s["run"].to_s }.join("\n")
-    assert_includes runs, "ridk enable ucrt64"
-    assert_match(/tebako press .*--output=vdl-btz-windows-x64\.exe/, runs)
+    assert_includes runs, "stage-win/ruby"
+    assert_includes runs, "stage-win/app/bin/vdl-btz version"
+    refute_includes runs, "tebako"
     assert_includes runs, "ISCC.exe"
     assert_includes runs, "packaging\\windows\\vdl-btz.iss"
     assert windows.any? { |s| s.dig("with", "path") == "dist/vdl-btz-windows-x64-setup.exe" }

@@ -116,55 +116,21 @@ jobs:
           mkdir -p dist
           sh packaging/linux/make_appimage.sh vdl-btz-${{ matrix.target }} x86_64 dist
 
-      - name: Preparar MSYS2 para Tebako
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          call gem install tebako -v 0.13.4
-          call ridk enable ucrt64
-          pacman -S --noconfirm git tar bison flex pactoys make
-          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
-
-      # Parches a Tebako 0.13.4 (se aplican al gem instalado):
-      # 1. Tebako fuerza `-G "MinGW Makefiles"`, que escribe recetas de cmd.exe; con sh.exe en el PATH
-      #    (MSYS2/Git) make las ejecuta con sh y falla ("'mTC_xxx.dir' is not recognized").
-      #    "MSYS Makefiles" es el generador pensado para ese caso. Ninja no sirve: Tebako avisa que rompe `press`.
-      # 2. Llama a `C:/.../configure` de Ruby; autoconf parte la ruta por los ":" del disco y dice
-      #    "cannot find required auxiliary files". Con `./configure` (se compila en el propio directorio) no hay ":".
-      # 3. En Windows el configure de Ruby prefiere clang (el LLVM del runner, que no enlaza con MinGW):
-      #    se le pasa CC=gcc CXX=g++ como argumento, porque las variables de entorno no le llegaban.
-      - name: Parchear Tebako para Windows
+      # Windows no usa Tebako (no compila con el MSYS2 actual): se lleva el Ruby de RubyInstaller
+      # que instaló setup-ruby (sin msys64) junto a bin/ y lib/, y el lanzador arranca `ruby.exe`.
+      - name: Preparar Ruby y aplicación de Windows
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          dir="$(dirname "$(gem contents tebako -v 0.13.4 | grep 'lib/tebako/scenario_manager.rb$')")/../.."
-          sed -i 's/"MinGW Makefiles"/"MSYS Makefiles"/' "$dir/lib/tebako/scenario_manager.rb"
-          sed -i 's|\${RUBY_SOURCE_DIR}/configure |./configure CC=gcc CXX=g++ |' "$dir/CMakeLists.txt"
-          grep -n 'MSYS Makefiles' "$dir/lib/tebako/scenario_manager.rb"
-          grep -n '\./configure CC=gcc' "$dir/CMakeLists.txt"
+          mkdir -p stage-win/ruby
+          cp -R stage stage-win/app
+          cp -R "$(ruby -e 'print RbConfig::TopDir')/." stage-win/ruby/
+          rm -rf stage-win/ruby/msys64
 
-      # Cada paso arranca una shell nueva: el entorno de MSYS2 se activa dentro del mismo paso que compila.
-      - name: Empaquetar binario de Windows
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          call ridk enable ucrt64
-          rem El configure de Ruby elegía clang (LLVM del runner) y no podía enlazar: se fuerza el gcc de ucrt64.
-          set CC=gcc
-          set CXX=g++
-          call tebako setup --Ruby=3.3.7
-          rem Tebako 0.15.9 no tiene runtime precompilado para Windows (fat/lean) y su modo bundle falla al enlazar: se usa 0.13.4.
-          call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=bundle
-
-      - name: Diagnóstico de Tebako (Windows)
-        if: failure() && runner.os == 'Windows'
-        shell: bash
-        run: tail -n 60 "$HOME/.tebako/deps/src/_ruby_3.3.7/config.log" || true
-
-      - name: Prueba rápida del binario de Windows
+      - name: Prueba rápida de la app de Windows
         if: runner.os == 'Windows'
         shell: bash
-        run: ./vdl-btz-windows-x64.exe version
+        run: stage-win/ruby/bin/ruby.exe stage-win/app/bin/vdl-btz version
 
       - name: Guardar versión del programa
         if: runner.os == 'Windows'

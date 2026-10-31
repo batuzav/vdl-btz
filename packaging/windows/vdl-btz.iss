@@ -17,7 +17,7 @@ Compression=lzma2
 Name: "desktopicon"; Description: "Crear un icono en el escritorio"
 
 [Files]
-Source: "..\..\vdl-btz-windows-x64.exe"; DestName: "vdl-btz.exe"; DestDir: "{app}"
+Source: "..\..\stage-win\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 Source: "vdl-btz-launcher.vbs"; DestDir: "{app}"
 
 [Icons]
