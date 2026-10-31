@@ -81,6 +81,8 @@ class PackagingTest < Minitest::Test
       assert File.file?(File.join(appdir, "usr", "bin", "vdl-btz"))
       assert File.file?(File.join(appdir, "vdl-btz.desktop"))
       assert File.file?(File.join(appdir, "vdl-btz.svg"))
+      assert File.file?(File.join(appdir, "vdl-btz.png"))
+      assert File.file?(File.join(appdir, ".DirIcon"))
       app_run = File.join(appdir, "AppRun")
       assert File.executable?(app_run)
       assert_includes File.read(app_run), 'exec "$HERE/usr/bin/vdl-btz" gui'

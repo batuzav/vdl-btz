@@ -20,7 +20,9 @@ rm -rf "$appdir"
 mkdir -p "$appdir/usr/bin"
 cp "$bin" "$appdir/usr/bin/vdl-btz"
 chmod 755 "$appdir/usr/bin/vdl-btz"
-cp "$here/vdl-btz.desktop" "$here/vdl-btz.svg" "$appdir/"
+cp "$here/vdl-btz.desktop" "$here/vdl-btz.svg" "$here/vdl-btz.png" "$appdir/"
+# appimagetool exige un PNG con el nombre del icono y un .DirIcon que sea archivo regular (no acepta solo SVG).
+cp "$here/vdl-btz.png" "$appdir/.DirIcon"
 
 # AppRun abre la aplicación (comando gui) desde dentro del AppImage.
 cat > "$appdir/AppRun" <<'EOF'
