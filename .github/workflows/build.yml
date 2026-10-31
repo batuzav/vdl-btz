@@ -122,8 +122,24 @@ jobs:
         run: |
           call gem install tebako -v 0.15.9
           call ridk enable ucrt64
-          pacman -S --noconfirm git tar bison flex pactoys
-          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p ninja:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
+          pacman -S --noconfirm git tar bison flex pactoys make
+          bash -c "pacboy sync --noconfirm toolchain:p make:p cmake:p boost:p diffutils:p libevent:p double-conversion:p fmt:p glog:p dlfcn:p gtest:p autotools:p ncurses:p libyaml:p"
+
+      # Parches a Tebako 0.15.9 (se aplican al gem instalado):
+      # 1. Tebako fuerza `-G "MinGW Makefiles"`, que escribe recetas de cmd.exe; con sh.exe en el PATH
+      #    (MSYS2/Git) make las ejecuta con sh y falla ("'mTC_xxx.dir' is not recognized").
+      #    "MSYS Makefiles" es el generador pensado para ese caso. Ninja no sirve: Tebako avisa que rompe `press`.
+      # 2. Llama a `C:/.../configure` de Ruby; autoconf parte la ruta por los ":" del disco y dice
+      #    "cannot find required auxiliary files". Con `./configure` (se compila en el propio directorio) no hay ":".
+      - name: Parchear Tebako para Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          dir="$(dirname "$(gem contents tebako -v 0.15.9 | grep 'lib/tebako/scenario_manager.rb$')")/../.."
+          sed -i 's/"MinGW Makefiles"/"MSYS Makefiles"/' "$dir/lib/tebako/scenario_manager.rb"
+          sed -i 's|\${RUBY_SOURCE_DIR}/configure |./configure |' "$dir/CMakeLists.txt"
+          grep -n 'MSYS Makefiles' "$dir/lib/tebako/scenario_manager.rb"
+          grep -n '\./configure ' "$dir/CMakeLists.txt"
 
       # Cada paso arranca una shell nueva: el entorno de MSYS2 se activa dentro del mismo paso que compila.
       - name: Empaquetar binario de Windows
@@ -131,8 +147,6 @@ jobs:
         shell: cmd
         run: |
           call ridk enable ucrt64
-          rem Ninja evita que CMake use mingw32-make junto al sh.exe de MSYS2 (rompe las rutas con barra invertida).
-          set CMAKE_GENERATOR=Ninja
           call tebako setup --Ruby=3.3.7
           call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=fat
 
