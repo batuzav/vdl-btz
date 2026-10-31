@@ -147,8 +147,16 @@ jobs:
         shell: cmd
         run: |
           call ridk enable ucrt64
+          rem El configure de Ruby elegía clang (LLVM del runner) y no podía enlazar: se fuerza el gcc de ucrt64.
+          set CC=gcc
+          set CXX=g++
           call tebako setup --Ruby=3.3.7
           call tebako press --root=stage --entry-point=bin/vdl-btz --output=vdl-btz-windows-x64.exe --Ruby=3.3.7 --mode=fat
+
+      - name: Diagnóstico de Tebako (Windows)
+        if: failure() && runner.os == 'Windows'
+        shell: bash
+        run: tail -n 60 "$HOME/.tebako/deps/src/_ruby_3.3.7/config.log" || true
 
       - name: Prueba rápida del binario de Windows
         if: runner.os == 'Windows'
