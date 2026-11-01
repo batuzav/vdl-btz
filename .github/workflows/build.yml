@@ -124,7 +124,9 @@ jobs:
         run: |
           mkdir -p stage-win/ruby
           cp -R stage stage-win/app
-          cp -R "$(ruby -e 'print RbConfig::TopDir')/." stage-win/ruby/
+          ruby_dir="$(ruby -e 'print RbConfig::TOPDIR')"
+          test -x "$ruby_dir/bin/ruby.exe"
+          cp -R "$ruby_dir/." stage-win/ruby/
           rm -rf stage-win/ruby/msys64
 
       - name: Prueba rápida de la app de Windows
